@@ -158,10 +158,15 @@ const StudentDashboard = () => {
           class: '',
         };
 
-        // 应用列映射
-        columnMappings.forEach(mapping => {
-          student[mapping.field as keyof Student] = row[mapping.column] || '';
-        });
+      // 应用列映射
+      columnMappings.forEach(mapping => {
+        if (mapping.field === 'name' || mapping.field === 'class') {
+          student[mapping.field] = row[mapping.column] || '';
+        } else {
+          // 映射到现有自定义字段
+          student[mapping.field] = row[mapping.column] || '';
+        }
+      });
 
         // 添加自定义字段数据
         selectedAsCustomFields.forEach(column => {
@@ -447,24 +452,33 @@ const StudentDashboard = () => {
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="选择字段" />
                               </SelectTrigger>
-                               <SelectContent>
+                              <SelectContent>
                                  <SelectItem value="none">不映射</SelectItem>
                                  <SelectItem value="name">姓名 (必填)</SelectItem>
                                  <SelectItem value="class">班级 (必填)</SelectItem>
+                                 {customFields.map(field => (
+                                   <SelectItem key={field.id} value={field.name}>
+                                     {field.name} (自定义字段)
+                                   </SelectItem>
+                                 ))}
                                </SelectContent>
                             </Select>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={isCustomField}
-                              onChange={() => toggleCustomField(column)}
-                              disabled={currentMapping?.field && currentMapping.field !== 'none'}
-                              className="rounded"
-                            />
-                            <span className="text-sm">作为自定义字段</span>
-                          </div>
+                           <div className="flex items-center gap-2">
+                             <input
+                               type="checkbox"
+                               checked={isCustomField}
+                               onChange={() => toggleCustomField(column)}
+                               disabled={currentMapping?.field && currentMapping.field !== 'none'}
+                               className="rounded"
+                             />
+                             <span className="text-sm">
+                               {currentMapping?.field && currentMapping.field !== 'none' 
+                                 ? '已映射' 
+                                 : '作为新建自定义字段'}
+                             </span>
+                           </div>
                         </div>
                       );
                     })}

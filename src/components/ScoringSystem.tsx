@@ -90,18 +90,41 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   const [keyBindings, setKeyBindings] = useState<KeyBinding>({ correct: 'y', incorrect: 'n' });
   const [showKeySettings, setShowKeySettings] = useState(false);
   
+  // 历史记录状态
+  const [selectedHistoryExam, setSelectedHistoryExam] = useState<string | null>(null);
+  
+  // 登分时学生选择状态
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  
   const { toast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // 常用姓氏拼音首字母映射
+  const surnameMap: Record<string, string> = {
+    '李': 'L', '王': 'W', '张': 'Z', '刘': 'L', '陈': 'C', '杨': 'Y', '赵': 'Z', '黄': 'H',
+    '周': 'Z', '吴': 'W', '徐': 'X', '孙': 'S', '胡': 'H', '朱': 'Z', '高': 'G', '林': 'L',
+    '何': 'H', '郭': 'G', '马': 'M', '罗': 'L', '梁': 'L', '宋': 'S', '郑': 'Z', '谢': 'X',
+    '韩': 'H', '唐': 'T', '冯': 'F', '于': 'Y', '董': 'D', '萧': 'X', '程': 'C', '曹': 'C',
+    '袁': 'Y', '邓': 'D', '许': 'X', '傅': 'F', '沈': 'S', '曾': 'Z', '彭': 'P', '吕': 'L',
+    '苏': 'S', '卢': 'L', '蒋': 'J', '蔡': 'C', '贾': 'J', '丁': 'D', '魏': 'W', '薛': 'X',
+    '叶': 'Y', '阎': 'Y', '余': 'Y', '潘': 'P', '杜': 'D', '戴': 'D', '夏': 'X', '钟': 'Z',
+    '汪': 'W', '田': 'T', '任': 'R', '姜': 'J', '范': 'F', '方': 'F', '石': 'S', '姚': 'Y',
+    '谭': 'T', '廖': 'L', '邹': 'Z', '熊': 'X', '金': 'J', '陆': 'L', '郝': 'H', '孔': 'K',
+    '白': 'B', '崔': 'C', '康': 'K', '毛': 'M', '邱': 'Q', '秦': 'Q', '江': 'J', '史': 'S',
+    '顾': 'G', '侯': 'H', '邵': 'S', '孟': 'M', '龙': 'L', '万': 'W', '段': 'D', '章': 'Z',
+    '钱': 'Q', '汤': 'T', '尹': 'Y', '黎': 'L', '易': 'Y', '常': 'C', '武': 'W', '乔': 'Q'
+  };
 
   // 初始化筛选学生列表
   useEffect(() => {
     let filtered = students;
     if (nameFilter) {
-      const firstLetter = nameFilter.toLowerCase();
-      filtered = students.filter(student => 
-        student.name.toLowerCase().charAt(0) === firstLetter ||
-        student.name.toLowerCase().includes(firstLetter)
-      );
+      const filterLetter = nameFilter.toUpperCase();
+      filtered = students.filter(student => {
+        const surname = student.name.charAt(0);
+        const pinyinLetter = surnameMap[surname] || surname.toUpperCase();
+        return pinyinLetter === filterLetter || student.name.includes(nameFilter);
+      });
     }
     setFilteredStudents(filtered);
   }, [students, nameFilter]);
@@ -173,8 +196,18 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     setCurrentStudentIndex(0);
     setCurrentQuestionIndex(0);
     setCurrentAnswers([]);
+    setSelectedStudentId(null);
     setIsScoring(true);
     setActiveTab('scoring');
+  };
+  
+  const selectStudent = (studentId: string) => {
+    const index = filteredStudents.findIndex(s => s.id === studentId);
+    if (index !== -1) {
+      setCurrentStudentIndex(index);
+      setCurrentQuestionIndex(0);
+      setSelectedStudentId(studentId);
+    }
   };
 
   const handleAnswer = (isCorrect: boolean) => {
@@ -237,10 +270,23 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     });
   };
 
-  const exportResults = () => {
-    if (!currentExam || examResults.length === 0) return;
+  const exportResults = (examId?: string) => {
+    const targetExamId = examId || currentExam?.id;
+    if (!targetExamId) return;
 
-    const examData = examResults.filter(r => r.examId === currentExam.id);
+    const exam = exams.find(e => e.id === targetExamId);
+    if (!exam) return;
+
+    const examData = examResults.filter(r => r.examId === targetExamId);
+    if (examData.length === 0) {
+      toast({
+        title: "无数据导出",
+        description: "该考试暂无成绩记录",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const exportData = examData.map(result => {
       const student = students.find(s => s.id === result.studentId);
       const data: any = {
@@ -248,11 +294,11 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
         '班级': student?.class || '',
         '总分': result.totalScore,
         '正确题数': result.correctCount,
-        '正确率': `${((result.correctCount / currentExam.totalQuestions) * 100).toFixed(1)}%`,
+        '正确率': `${((result.correctCount / exam.totalQuestions) * 100).toFixed(1)}%`,
       };
 
       // 添加每题得分
-      for (let i = 0; i < currentExam.totalQuestions; i++) {
+      for (let i = 0; i < exam.totalQuestions; i++) {
         const answer = result.answers.find(a => a.questionIndex === i);
         data[`第${i + 1}题`] = answer ? answer.score : 0;
       }
@@ -263,7 +309,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "考试成绩");
-    XLSX.writeFile(workbook, `${currentExam.name}_成绩_${new Date().toLocaleDateString()}.xlsx`);
+    XLSX.writeFile(workbook, `${exam.name}_成绩_${new Date().toLocaleDateString()}.xlsx`);
     
     toast({
       title: "导出成功",
@@ -291,13 +337,13 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
               <Trophy className="w-4 h-4 mr-1" />
               {exams.length} 场考试
             </Badge>
-            <Button onClick={() => setShowKeySettings(true)} variant="outline">
-              <Keyboard className="w-4 h-4 mr-2" />
-              快捷键设置
-            </Button>
-            <Button onClick={onClose} variant="outline">
-              返回
-            </Button>
+                    <Button onClick={() => setShowKeySettings(true)} variant="outline">
+                      <Keyboard className="w-4 h-4 mr-2" />
+                      快捷键设置
+                    </Button>
+                    <Button onClick={onClose} variant="outline">
+                      返回
+                    </Button>
           </div>
         </div>
 
@@ -457,22 +503,40 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex gap-4">
-                      <div className="flex-1">
-                        <Label htmlFor="name-filter">按姓名首字母筛选</Label>
-                        <Input
-                          id="name-filter"
-                          value={nameFilter}
-                          onChange={(e) => setNameFilter(e.target.value)}
-                          placeholder="输入姓名首字母，如: 张"
-                        />
+                      <div className="flex gap-4">
+                        <div className="flex-1">
+                          <Label htmlFor="name-filter">按姓氏拼音首字母筛选</Label>
+                          <Input
+                            id="name-filter"
+                            value={nameFilter}
+                            onChange={(e) => setNameFilter(e.target.value)}
+                            placeholder="输入拼音首字母，如: Z (张、赵、周等)"
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <Badge variant="secondary" className="px-3 py-2">
+                            共 {filteredStudents.length} 名学生
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex items-end">
-                        <Badge variant="secondary" className="px-3 py-2">
-                          共 {filteredStudents.length} 名学生
-                        </Badge>
+                      
+                      {/* 学生选择列表 */}
+                      <div className="mt-4">
+                        <Label>选择学生进行评分</Label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mt-2 max-h-40 overflow-y-auto">
+                          {filteredStudents.map(student => (
+                            <Button
+                              key={student.id}
+                              variant={selectedStudentId === student.id ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => selectStudent(student.id)}
+                              className="text-left justify-start"
+                            >
+                              {student.name}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -552,7 +616,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                       <BarChart3 className="w-5 h-5 text-accent" />
                       {currentExam.name} - 成绩统计
                     </span>
-                    <Button onClick={exportResults} variant="outline">
+                    <Button onClick={() => exportResults()} variant="outline">
                       <Download className="w-4 h-4 mr-2" />
                       导出Excel
                     </Button>
@@ -599,44 +663,154 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
 
           {/* 历史记录 */}
           <TabsContent value="history" className="space-y-6">
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle>学生考试历史</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {students.map(student => {
-                    const history = getStudentExamHistory(student.id);
-                    if (history.length === 0) return null;
+            {!selectedHistoryExam ? (
+              // 考试列表选择
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-accent" />
+                    考试历史记录
+                  </CardTitle>
+                  <CardDescription>
+                    选择一场考试查看详细成绩
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {exams.map(exam => {
+                      const examResultsData = examResults.filter(r => r.examId === exam.id);
+                      if (examResultsData.length === 0) return null;
 
-                    return (
-                      <div key={student.id} className="border rounded-lg p-4 space-y-3">
-                        <div>
-                          <h3 className="font-medium">{student.name}</h3>
-                          <p className="text-sm text-muted-foreground">{student.class}</p>
+                      const avgScore = examResultsData.reduce((sum, r) => sum + r.totalScore, 0) / examResultsData.length;
+                      const maxScore = exam.scores.reduce((sum, s) => sum + s, 0);
+
+                      return (
+                        <div key={exam.id} className="border rounded-lg p-4 space-y-3 hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-medium">{exam.name}</h3>
+                            <Badge variant="outline">
+                              {examResultsData.length} 人参加
+                            </Badge>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">平均分:</span>
+                              <span>{avgScore.toFixed(1)} / {maxScore}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">创建时间:</span>
+                              <span>{exam.createdAt.toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={() => setSelectedHistoryExam(exam.id)}
+                              className="flex-1"
+                              size="sm"
+                            >
+                              查看详情
+                            </Button>
+                            <Button 
+                              onClick={() => exportResults(exam.id)}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <FileSpreadsheet className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          {history.map(result => {
-                            const exam = exams.find(e => e.id === result.examId);
-                            return (
-                              <div key={`${result.examId}-${result.studentId}`} className="text-sm">
-                                <div className="flex justify-between">
-                                  <span>{exam?.name}</span>
-                                  <span className="font-medium">{result.totalScore}分</span>
+                      );
+                    })}
+                  </div>
+                  {exams.filter(exam => examResults.some(r => r.examId === exam.id)).length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>暂无考试记录</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              // 选中考试的详细成绩
+              <Card className="shadow-card">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-accent" />
+                        {exams.find(e => e.id === selectedHistoryExam)?.name} - 详细成绩
+                      </CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        onClick={() => exportResults(selectedHistoryExam)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <FileSpreadsheet className="w-4 h-4 mr-2" />
+                        导出Excel
+                      </Button>
+                      <Button 
+                        onClick={() => setSelectedHistoryExam(null)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        返回
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {examResults
+                      .filter(result => result.examId === selectedHistoryExam)
+                      .map(result => {
+                        const student = students.find(s => s.id === result.studentId);
+                        const exam = exams.find(e => e.id === result.examId);
+                        if (!student || !exam) return null;
+
+                        return (
+                          <div key={`${result.examId}-${result.studentId}`} className="border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <h4 className="font-medium">{student.name}</h4>
+                                <p className="text-sm text-muted-foreground">{student.class}</p>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-bold text-primary">
+                                  {result.totalScore} / {exam.scores.reduce((sum, s) => sum + s, 0)}
                                 </div>
-                                <div className="text-muted-foreground">
-                                  正确率: {((result.correctCount / (exam?.totalQuestions || 1)) * 100).toFixed(1)}%
+                                <div className="text-sm text-muted-foreground">
+                                  {result.correctCount}/{exam.totalQuestions} 题正确
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                            </div>
+                            
+                            {/* 每题详细得分 */}
+                            <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
+                              {Array.from({ length: exam.totalQuestions }, (_, i) => {
+                                const answer = result.answers.find(a => a.questionIndex === i);
+                                return (
+                                  <div key={i} className="text-center">
+                                    <div className="text-xs text-muted-foreground">第{i + 1}题</div>
+                                    <Badge 
+                                      variant={answer?.isCorrect ? "default" : "destructive"}
+                                      className="w-full text-xs"
+                                    >
+                                      {answer?.score || 0}分
+                                    </Badge>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
 
