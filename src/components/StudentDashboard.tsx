@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2 } from 'lucide-react';
+import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Student {
@@ -24,6 +25,16 @@ interface CustomField {
   type: 'text' | 'number' | 'date' | 'email';
 }
 
+interface ColumnMapping {
+  column: string;
+  field: string;
+}
+
+interface ExcelData {
+  columns: string[];
+  rows: any[];
+}
+
 const StudentDashboard = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -31,6 +42,12 @@ const StudentDashboard = () => {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'date' | 'email'>('text');
+  
+  // 新增状态用于列映射
+  const [excelData, setExcelData] = useState<ExcelData | null>(null);
+  const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
+  const [selectedAsCustomFields, setSelectedAsCustomFields] = useState<string[]>([]);
+  
   const { toast } = useToast();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,19 +61,41 @@ const StudentDashboard = () => {
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      const newStudents: Student[] = jsonData.map((row: any, index) => ({
-        id: `student-${Date.now()}-${index}`,
-        name: row['姓名'] || row['Name'] || row['name'] || '',
-        studentId: row['学号'] || row['Student ID'] || row['studentId'] || '',
-        email: row['邮箱'] || row['Email'] || row['email'] || '',
-        grade: row['年级'] || row['Grade'] || row['grade'] || '',
-        ...row // 保留其他所有字段
-      }));
+      if (jsonData.length === 0) {
+        throw new Error('Excel文件没有数据');
+      }
 
-      setStudents(prev => [...prev, ...newStudents]);
+      // 获取所有列名
+      const columns = Object.keys(jsonData[0] as any);
+      
+      // 设置Excel数据，进入列映射模式
+      setExcelData({ columns, rows: jsonData });
+      
+      // 初始化列映射
+      const initialMappings: ColumnMapping[] = [];
+      const baseFields = ['name', 'studentId', 'email', 'grade'];
+      const fieldLabels = { name: '姓名', studentId: '学号', email: '邮箱', grade: '年级' };
+      
+      columns.forEach(column => {
+        // 尝试智能匹配
+        const lowerColumn = column.toLowerCase();
+        if (lowerColumn.includes('姓名') || lowerColumn.includes('name')) {
+          initialMappings.push({ column, field: 'name' });
+        } else if (lowerColumn.includes('学号') || lowerColumn.includes('student') || lowerColumn.includes('id')) {
+          initialMappings.push({ column, field: 'studentId' });
+        } else if (lowerColumn.includes('邮箱') || lowerColumn.includes('email') || lowerColumn.includes('mail')) {
+          initialMappings.push({ column, field: 'email' });
+        } else if (lowerColumn.includes('年级') || lowerColumn.includes('grade') || lowerColumn.includes('class')) {
+          initialMappings.push({ column, field: 'grade' });
+        }
+      });
+      
+      setColumnMappings(initialMappings);
+      setSelectedAsCustomFields([]);
+
       toast({
-        title: "导入成功",
-        description: `成功导入 ${newStudents.length} 名学生信息`,
+        title: "文件解析成功",
+        description: `发现 ${columns.length} 个列，${jsonData.length} 行数据，请配置列映射`,
       });
     } catch (error) {
       toast({
@@ -67,6 +106,87 @@ const StudentDashboard = () => {
     } finally {
       setUploading(false);
     }
+  };
+
+  const updateColumnMapping = (column: string, field: string) => {
+    setColumnMappings(prev => {
+      const filtered = prev.filter(m => m.column !== column && m.field !== field);
+      if (field === 'none') {
+        return filtered;
+      }
+      return [...filtered, { column, field }];
+    });
+  };
+
+  const toggleCustomField = (column: string) => {
+    setSelectedAsCustomFields(prev => 
+      prev.includes(column) 
+        ? prev.filter(c => c !== column)
+        : [...prev, column]
+    );
+  };
+
+  const confirmImport = () => {
+    if (!excelData) return;
+
+    try {
+      // 创建新的自定义字段
+      const newCustomFields = selectedAsCustomFields.map(column => ({
+        id: `field-${Date.now()}-${column}`,
+        name: column,
+        type: 'text' as const,
+      }));
+
+      // 更新自定义字段
+      setCustomFields(prev => [...prev, ...newCustomFields]);
+
+      // 创建学生数据
+      const newStudents: Student[] = excelData.rows.map((row: any, index) => {
+        const student: Student = {
+          id: `student-${Date.now()}-${index}`,
+          name: '',
+          studentId: '',
+          email: '',
+          grade: '',
+        };
+
+        // 应用列映射
+        columnMappings.forEach(mapping => {
+          student[mapping.field as keyof Student] = row[mapping.column] || '';
+        });
+
+        // 添加自定义字段数据
+        selectedAsCustomFields.forEach(column => {
+          student[column] = row[column] || '';
+        });
+
+        return student;
+      });
+
+      setStudents(prev => [...prev, ...newStudents]);
+      
+      // 重置状态
+      setExcelData(null);
+      setColumnMappings([]);
+      setSelectedAsCustomFields([]);
+
+      toast({
+        title: "导入成功",
+        description: `成功导入 ${newStudents.length} 名学生信息`,
+      });
+    } catch (error) {
+      toast({
+        title: "导入失败",
+        description: "数据处理出错，请重试",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const cancelImport = () => {
+    setExcelData(null);
+    setColumnMappings([]);
+    setSelectedAsCustomFields([]);
   };
 
   const addCustomField = () => {
@@ -158,49 +278,144 @@ const StudentDashboard = () => {
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
-            {/* Upload Section */}
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="w-5 h-5 text-accent" />
-                  Excel文件上传
-                </CardTitle>
-                <CardDescription>
-                  上传包含学生信息的Excel文件，系统将自动识别并导入数据
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                  <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <div className="space-y-2">
-                    <Label htmlFor="excel-upload" className="cursor-pointer">
-                      <span className="text-lg font-medium text-primary">
-                        点击上传Excel文件
-                      </span>
-                    </Label>
+            {!excelData ? (
+              // Upload Section
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-accent" />
+                    Excel文件上传
+                  </CardTitle>
+                  <CardDescription>
+                    上传包含学生信息的Excel文件，然后配置列与字段的对应关系
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                    <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <div className="space-y-2">
+                      <Label htmlFor="excel-upload" className="cursor-pointer">
+                        <span className="text-lg font-medium text-primary">
+                          点击上传Excel文件
+                        </span>
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        支持.xlsx和.xls格式，上传后可自定义列与字段的映射关系
+                      </p>
+                    </div>
+                    <Input
+                      id="excel-upload"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileUpload}
+                      disabled={uploading}
+                      className="hidden"
+                    />
+                    {uploading && (
+                      <div className="mt-4">
+                        <div className="inline-flex items-center gap-2 text-accent">
+                          <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                          正在解析文件...
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              // Column Mapping Section
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-accent" />
+                    配置列映射
+                  </CardTitle>
+                  <CardDescription>
+                    选择Excel列与学生信息字段的对应关系，未映射的列可选择作为自定义字段
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <p className="text-sm font-medium mb-2">发现数据：</p>
                     <p className="text-sm text-muted-foreground">
-                      支持.xlsx和.xls格式，建议包含姓名、学号、邮箱、年级等基础信息
+                      {excelData.columns.length} 个列，{excelData.rows.length} 行数据
                     </p>
                   </div>
-                  <Input
-                    id="excel-upload"
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                    className="hidden"
-                  />
-                  {uploading && (
-                    <div className="mt-4">
-                      <div className="inline-flex items-center gap-2 text-accent">
-                        <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                        正在解析文件...
+
+                  <div className="space-y-4">
+                    <h4 className="font-medium">字段映射</h4>
+                    {excelData.columns.map(column => {
+                      const currentMapping = columnMappings.find(m => m.column === column);
+                      const isCustomField = selectedAsCustomFields.includes(column);
+                      
+                      return (
+                        <div key={column} className="flex items-center gap-4 p-4 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{column}</div>
+                            <div className="text-xs text-muted-foreground">
+                              示例数据: {excelData.rows[0]?.[column] || '无数据'}
+                            </div>
+                          </div>
+                          
+                          <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                          
+                          <div className="flex-1">
+                            <Select
+                              value={currentMapping?.field || 'none'}
+                              onValueChange={(value) => updateColumnMapping(column, value)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="选择字段" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">不映射</SelectItem>
+                                <SelectItem value="name">姓名</SelectItem>
+                                <SelectItem value="studentId">学号</SelectItem>
+                                <SelectItem value="email">邮箱</SelectItem>
+                                <SelectItem value="grade">年级</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isCustomField}
+                              onChange={() => toggleCustomField(column)}
+                              disabled={currentMapping?.field && currentMapping.field !== 'none'}
+                              className="rounded"
+                            />
+                            <span className="text-sm">作为自定义字段</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {selectedAsCustomFields.length > 0 && (
+                    <div className="bg-accent/10 p-4 rounded-lg">
+                      <h5 className="font-medium text-sm mb-2">将创建的自定义字段：</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedAsCustomFields.map(field => (
+                          <Badge key={field} variant="secondary">{field}</Badge>
+                        ))}
                       </div>
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+
+                  <div className="flex gap-4 pt-4">
+                    <Button onClick={confirmImport} className="flex-1">
+                      <Upload className="w-4 h-4 mr-2" />
+                      确认导入
+                    </Button>
+                    <Button onClick={cancelImport} variant="outline">
+                      <X className="w-4 h-4 mr-2" />
+                      取消
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
