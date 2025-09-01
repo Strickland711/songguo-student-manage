@@ -14,9 +14,6 @@ interface Student {
   id: string;
   name: string;
   class: string;
-  studentId?: string;
-  email?: string;
-  grade?: string;
   [key: string]: any; // 允许动态字段
 }
 
@@ -48,6 +45,11 @@ const StudentDashboard = () => {
   const [excelData, setExcelData] = useState<ExcelData | null>(null);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [selectedAsCustomFields, setSelectedAsCustomFields] = useState<string[]>([]);
+  
+  // 重复学生处理状态
+  const [duplicateStudents, setDuplicateStudents] = useState<Student[]>([]);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
   
   // 学生显示和筛选状态
   const [visibleFields, setVisibleFields] = useState<string[]>(['name', 'class']);
@@ -165,17 +167,41 @@ const StudentDashboard = () => {
         return student;
       });
 
-      setStudents(prev => [...prev, ...newStudents]);
-      
-      // 重置状态
-      setExcelData(null);
-      setColumnMappings([]);
-      setSelectedAsCustomFields([]);
+      // 检测重复学生（同名同姓）
+      const duplicates: Student[] = [];
+      const uniqueStudents: Student[] = [];
 
-      toast({
-        title: "导入成功",
-        description: `成功导入 ${newStudents.length} 名学生信息`,
+      newStudents.forEach(newStudent => {
+        const existingStudent = students.find(s => 
+          s.name === newStudent.name && s.class === newStudent.class
+        );
+        
+        if (existingStudent) {
+          duplicates.push(newStudent);
+        } else {
+          uniqueStudents.push(newStudent);
+        }
       });
+
+      if (duplicates.length > 0) {
+        // 有重复学生，显示确认对话框
+        setDuplicateStudents(duplicates);
+        setPendingStudents(uniqueStudents);
+        setShowDuplicateDialog(true);
+      } else {
+        // 没有重复，直接添加
+        setStudents(prev => [...prev, ...newStudents]);
+        
+        // 重置状态
+        setExcelData(null);
+        setColumnMappings([]);
+        setSelectedAsCustomFields([]);
+
+        toast({
+          title: "导入成功",
+          description: `成功导入 ${newStudents.length} 名学生信息`,
+        });
+      }
     } catch (error) {
       toast({
         title: "导入失败",
@@ -183,6 +209,41 @@ const StudentDashboard = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleDuplicateChoice = (overwrite: boolean) => {
+    if (overwrite) {
+      // 覆盖重复学生信息
+      const updatedStudents = students.map(existingStudent => {
+        const duplicate = duplicateStudents.find(d => 
+          d.name === existingStudent.name && d.class === existingStudent.class
+        );
+        return duplicate ? { ...duplicate, id: existingStudent.id } : existingStudent;
+      });
+      
+      setStudents([...updatedStudents, ...pendingStudents]);
+      
+      toast({
+        title: "导入成功",
+        description: `成功导入 ${pendingStudents.length} 名新学生，覆盖 ${duplicateStudents.length} 名重复学生信息`,
+      });
+    } else {
+      // 跳过重复学生，只导入新学生
+      setStudents(prev => [...prev, ...pendingStudents]);
+      
+      toast({
+        title: "导入成功",
+        description: `成功导入 ${pendingStudents.length} 名新学生，跳过 ${duplicateStudents.length} 名重复学生`,
+      });
+    }
+
+    // 重置状态
+    setExcelData(null);
+    setColumnMappings([]);
+    setSelectedAsCustomFields([]);
+    setDuplicateStudents([]);
+    setPendingStudents([]);
+    setShowDuplicateDialog(false);
   };
 
   const cancelImport = () => {
@@ -373,9 +434,6 @@ const StudentDashboard = () => {
                                  <SelectItem value="none">不映射</SelectItem>
                                  <SelectItem value="name">姓名 (必填)</SelectItem>
                                  <SelectItem value="class">班级 (必填)</SelectItem>
-                                 <SelectItem value="studentId">学号 (可选)</SelectItem>
-                                 <SelectItem value="email">邮箱 (可选)</SelectItem>
-                                 <SelectItem value="grade">年级 (可选)</SelectItem>
                                </SelectContent>
                             </Select>
                           </div>
@@ -486,58 +544,36 @@ const StudentDashboard = () => {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="name">姓名</SelectItem>
-                        <SelectItem value="class">班级</SelectItem>
-                        {visibleFields.includes('studentId') && <SelectItem value="studentId">学号</SelectItem>}
-                        {visibleFields.includes('email') && <SelectItem value="email">邮箱</SelectItem>}
-                        {visibleFields.includes('grade') && <SelectItem value="grade">年级</SelectItem>}
-                        {customFields.filter(f => visibleFields.includes(f.name)).map(field => (
-                          <SelectItem key={field.id} value={field.name}>{field.name}</SelectItem>
-                        ))}
-                      </SelectContent>
+                       <SelectContent>
+                         <SelectItem value="name">姓名</SelectItem>
+                         <SelectItem value="class">班级</SelectItem>
+                         {customFields.filter(f => visibleFields.includes(f.name)).map(field => (
+                           <SelectItem key={field.id} value={field.name}>{field.name}</SelectItem>
+                         ))}
+                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Label className="text-sm font-medium">显示字段:</Label>
-                  {['studentId', 'email', 'grade'].map(field => {
-                    const labels = { studentId: '学号', email: '邮箱', grade: '年级' };
-                    return (
-                      <label key={field} className="flex items-center gap-1 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={visibleFields.includes(field)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setVisibleFields(prev => [...prev, field]);
-                            } else {
-                              setVisibleFields(prev => prev.filter(f => f !== field));
-                            }
-                          }}
-                        />
-                        {labels[field as keyof typeof labels]}
-                      </label>
-                    );
-                  })}
-                  {customFields.map(field => (
-                    <label key={field.id} className="flex items-center gap-1 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={visibleFields.includes(field.name)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setVisibleFields(prev => [...prev, field.name]);
-                          } else {
-                            setVisibleFields(prev => prev.filter(f => f !== field.name));
-                          }
-                        }}
-                      />
-                      {field.name}
-                    </label>
-                  ))}
-                </div>
+                 <div className="flex flex-wrap gap-2">
+                   <Label className="text-sm font-medium">显示字段:</Label>
+                   {customFields.map(field => (
+                     <label key={field.id} className="flex items-center gap-1 text-sm">
+                       <input
+                         type="checkbox"
+                         checked={visibleFields.includes(field.name)}
+                         onChange={(e) => {
+                           if (e.target.checked) {
+                             setVisibleFields(prev => [...prev, field.name]);
+                           } else {
+                             setVisibleFields(prev => prev.filter(f => f !== field.name));
+                           }
+                         }}
+                       />
+                       {field.name}
+                     </label>
+                   ))}
+                 </div>
 
                 {students.length === 0 ? (
                   <div className="text-center py-12">
@@ -549,17 +585,14 @@ const StudentDashboard = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-4 font-medium">姓名</th>
-                          <th className="text-left p-4 font-medium">班级</th>
-                          {visibleFields.includes('studentId') && <th className="text-left p-4 font-medium">学号</th>}
-                          {visibleFields.includes('email') && <th className="text-left p-4 font-medium">邮箱</th>}
-                          {visibleFields.includes('grade') && <th className="text-left p-4 font-medium">年级</th>}
-                          {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
-                            <th key={field.id} className="text-left p-4 font-medium">{field.name}</th>
-                          ))}
-                          <th className="text-left p-4 font-medium">操作</th>
-                        </tr>
+                         <tr className="border-b">
+                           <th className="text-left p-4 font-medium">姓名</th>
+                           <th className="text-left p-4 font-medium">班级</th>
+                           {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
+                             <th key={field.id} className="text-left p-4 font-medium">{field.name}</th>
+                           ))}
+                           <th className="text-left p-4 font-medium">操作</th>
+                         </tr>
                       </thead>
                       <tbody>
                         {students
@@ -569,34 +602,31 @@ const StudentDashboard = () => {
                             return fieldValue && fieldValue.toString().toLowerCase().includes(filterValue.toLowerCase());
                           })
                           .map(student => (
-                          <tr key={student.id} className="border-b hover:bg-muted/50 transition-smooth">
-                            <td className="p-4 font-medium">{student.name}</td>
-                            <td className="p-4">{student.class}</td>
-                            {visibleFields.includes('studentId') && <td className="p-4">{student.studentId || '-'}</td>}
-                            {visibleFields.includes('email') && <td className="p-4">{student.email || '-'}</td>}
-                            {visibleFields.includes('grade') && <td className="p-4">{student.grade || '-'}</td>}
-                            {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
-                              <td key={field.id} className="p-4">{student[field.name] || '-'}</td>
-                            ))}
-                            <td className="p-4">
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setEditingStudent(student)}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => deleteStudent(student.id)}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
+                           <tr key={student.id} className="border-b hover:bg-muted/50 transition-smooth">
+                             <td className="p-4 font-medium">{student.name}</td>
+                             <td className="p-4">{student.class}</td>
+                             {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
+                               <td key={field.id} className="p-4">{student[field.name] || '-'}</td>
+                             ))}
+                             <td className="p-4">
+                               <div className="flex gap-2">
+                                 <Button
+                                   size="sm"
+                                   variant="outline"
+                                   onClick={() => setEditingStudent(student)}
+                                 >
+                                   <Edit className="w-4 h-4" />
+                                 </Button>
+                                 <Button
+                                   size="sm"
+                                   variant="destructive"
+                                   onClick={() => deleteStudent(student.id)}
+                                 >
+                                   <Trash2 className="w-4 h-4" />
+                                 </Button>
+                               </div>
+                             </td>
+                           </tr>
                         ))}
                       </tbody>
                     </table>
@@ -689,34 +719,13 @@ const StudentDashboard = () => {
                   onChange={(e) => setEditingStudent({...editingStudent, name: e.target.value})}
                 />
               </div>
-              <div>
-                <Label>班级 *</Label>
-                <Input
-                  value={editingStudent.class}
-                  onChange={(e) => setEditingStudent({...editingStudent, class: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label>学号</Label>
-                <Input
-                  value={editingStudent.studentId || ''}
-                  onChange={(e) => setEditingStudent({...editingStudent, studentId: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label>邮箱</Label>
-                <Input
-                  value={editingStudent.email || ''}
-                  onChange={(e) => setEditingStudent({...editingStudent, email: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label>年级</Label>
-                <Input
-                  value={editingStudent.grade || ''}
-                  onChange={(e) => setEditingStudent({...editingStudent, grade: e.target.value})}
-                />
-              </div>
+               <div>
+                 <Label>班级 *</Label>
+                 <Input
+                   value={editingStudent.class}
+                   onChange={(e) => setEditingStudent({...editingStudent, class: e.target.value})}
+                 />
+               </div>
               {customFields.map(field => (
                 <div key={field.id}>
                   <Label>{field.name}</Label>
@@ -736,6 +745,48 @@ const StudentDashboard = () => {
                 </Button>
                 <Button variant="outline" onClick={() => setEditingStudent(null)} className="flex-1">
                   取消
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Duplicate Students Dialog */}
+      {showDuplicateDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-lg">
+            <CardHeader>
+              <CardTitle>发现重复学生</CardTitle>
+              <CardDescription>
+                发现 {duplicateStudents.length} 名重复学生（同名同班级），请选择处理方式
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="max-h-48 overflow-y-auto border rounded-lg p-3">
+                <h4 className="font-medium mb-2">重复学生列表：</h4>
+                {duplicateStudents.map((student, index) => (
+                  <div key={index} className="flex justify-between py-1 text-sm">
+                    <span>{student.name}</span>
+                    <span className="text-muted-foreground">{student.class}</span>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => handleDuplicateChoice(true)} 
+                  className="w-full"
+                  variant="default"
+                >
+                  覆盖现有信息
+                </Button>
+                <Button 
+                  onClick={() => handleDuplicateChoice(false)} 
+                  className="w-full"
+                  variant="outline"
+                >
+                  跳过重复学生
                 </Button>
               </div>
             </CardContent>
