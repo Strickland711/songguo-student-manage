@@ -13,9 +13,10 @@ import * as XLSX from 'xlsx';
 interface Student {
   id: string;
   name: string;
-  studentId: string;
-  email: string;
-  grade: string;
+  class: string;
+  studentId?: string;
+  email?: string;
+  grade?: string;
   [key: string]: any; // 允许动态字段
 }
 
@@ -48,6 +49,11 @@ const StudentDashboard = () => {
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [selectedAsCustomFields, setSelectedAsCustomFields] = useState<string[]>([]);
   
+  // 学生显示和筛选状态
+  const [visibleFields, setVisibleFields] = useState<string[]>(['name', 'class']);
+  const [filterValue, setFilterValue] = useState('');
+  const [filterField, setFilterField] = useState('name');
+  
   const { toast } = useToast();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,27 +77,25 @@ const StudentDashboard = () => {
       // 设置Excel数据，进入列映射模式
       setExcelData({ columns, rows: jsonData });
       
-      // 初始化列映射
+      // 初始化列映射 - 只需要必填的姓名和班级
       const initialMappings: ColumnMapping[] = [];
-      const baseFields = ['name', 'studentId', 'email', 'grade'];
-      const fieldLabels = { name: '姓名', studentId: '学号', email: '邮箱', grade: '年级' };
+      const unmappedColumns: string[] = [];
       
       columns.forEach(column => {
-        // 尝试智能匹配
+        // 尝试智能匹配必填字段
         const lowerColumn = column.toLowerCase();
         if (lowerColumn.includes('姓名') || lowerColumn.includes('name')) {
           initialMappings.push({ column, field: 'name' });
-        } else if (lowerColumn.includes('学号') || lowerColumn.includes('student') || lowerColumn.includes('id')) {
-          initialMappings.push({ column, field: 'studentId' });
-        } else if (lowerColumn.includes('邮箱') || lowerColumn.includes('email') || lowerColumn.includes('mail')) {
-          initialMappings.push({ column, field: 'email' });
-        } else if (lowerColumn.includes('年级') || lowerColumn.includes('grade') || lowerColumn.includes('class')) {
-          initialMappings.push({ column, field: 'grade' });
+        } else if (lowerColumn.includes('班级') || lowerColumn.includes('class')) {
+          initialMappings.push({ column, field: 'class' });
+        } else {
+          // 其他列默认作为自定义字段候选
+          unmappedColumns.push(column);
         }
       });
       
       setColumnMappings(initialMappings);
-      setSelectedAsCustomFields([]);
+      setSelectedAsCustomFields(unmappedColumns); // 默认将未映射的列作为自定义字段
 
       toast({
         title: "文件解析成功",
@@ -145,9 +149,7 @@ const StudentDashboard = () => {
         const student: Student = {
           id: `student-${Date.now()}-${index}`,
           name: '',
-          studentId: '',
-          email: '',
-          grade: '',
+          class: '',
         };
 
         // 应用列映射
@@ -330,9 +332,9 @@ const StudentDashboard = () => {
                     <Settings className="w-5 h-5 text-accent" />
                     配置列映射
                   </CardTitle>
-                  <CardDescription>
-                    选择Excel列与学生信息字段的对应关系，未映射的列可选择作为自定义字段
-                  </CardDescription>
+                   <CardDescription>
+                     必须映射姓名和班级字段，其他字段可选择映射或作为自定义字段
+                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="bg-muted/50 p-4 rounded-lg">
@@ -367,13 +369,14 @@ const StudentDashboard = () => {
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="选择字段" />
                               </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">不映射</SelectItem>
-                                <SelectItem value="name">姓名</SelectItem>
-                                <SelectItem value="studentId">学号</SelectItem>
-                                <SelectItem value="email">邮箱</SelectItem>
-                                <SelectItem value="grade">年级</SelectItem>
-                              </SelectContent>
+                               <SelectContent>
+                                 <SelectItem value="none">不映射</SelectItem>
+                                 <SelectItem value="name">姓名 (必填)</SelectItem>
+                                 <SelectItem value="class">班级 (必填)</SelectItem>
+                                 <SelectItem value="studentId">学号 (可选)</SelectItem>
+                                 <SelectItem value="email">邮箱 (可选)</SelectItem>
+                                 <SelectItem value="grade">年级 (可选)</SelectItem>
+                               </SelectContent>
                             </Select>
                           </div>
 
@@ -446,12 +449,12 @@ const StudentDashboard = () => {
               <Card className="shadow-card">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">年级覆盖</p>
-                      <p className="text-2xl font-bold text-primary">
-                        {new Set(students.map(s => s.grade).filter(Boolean)).size}
-                      </p>
-                    </div>
+                     <div>
+                       <p className="text-sm font-medium text-muted-foreground">班级数量</p>
+                       <p className="text-2xl font-bold text-primary">
+                         {new Set(students.map(s => s.class).filter(Boolean)).size}
+                       </p>
+                     </div>
                     <FileSpreadsheet className="w-8 h-8 text-accent" />
                   </div>
                 </CardContent>
@@ -460,13 +463,82 @@ const StudentDashboard = () => {
           </TabsContent>
 
           <TabsContent value="students" className="space-y-6">
-            {/* Students Table */}
+            {/* Students Filter and Display Controls */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle>学生列表</CardTitle>
                 <CardDescription>管理所有学生信息</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex-1 min-w-48">
+                    <Label htmlFor="filter">筛选学生</Label>
+                    <Input
+                      id="filter"
+                      placeholder="输入搜索内容..."
+                      value={filterValue}
+                      onChange={(e) => setFilterValue(e.target.value)}
+                    />
+                  </div>
+                  <div className="w-32">
+                    <Label htmlFor="filter-field">筛选字段</Label>
+                    <Select value={filterField} onValueChange={setFilterField}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="name">姓名</SelectItem>
+                        <SelectItem value="class">班级</SelectItem>
+                        {visibleFields.includes('studentId') && <SelectItem value="studentId">学号</SelectItem>}
+                        {visibleFields.includes('email') && <SelectItem value="email">邮箱</SelectItem>}
+                        {visibleFields.includes('grade') && <SelectItem value="grade">年级</SelectItem>}
+                        {customFields.filter(f => visibleFields.includes(f.name)).map(field => (
+                          <SelectItem key={field.id} value={field.name}>{field.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Label className="text-sm font-medium">显示字段:</Label>
+                  {['studentId', 'email', 'grade'].map(field => {
+                    const labels = { studentId: '学号', email: '邮箱', grade: '年级' };
+                    return (
+                      <label key={field} className="flex items-center gap-1 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={visibleFields.includes(field)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setVisibleFields(prev => [...prev, field]);
+                            } else {
+                              setVisibleFields(prev => prev.filter(f => f !== field));
+                            }
+                          }}
+                        />
+                        {labels[field as keyof typeof labels]}
+                      </label>
+                    );
+                  })}
+                  {customFields.map(field => (
+                    <label key={field.id} className="flex items-center gap-1 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={visibleFields.includes(field.name)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setVisibleFields(prev => [...prev, field.name]);
+                          } else {
+                            setVisibleFields(prev => prev.filter(f => f !== field.name));
+                          }
+                        }}
+                      />
+                      {field.name}
+                    </label>
+                  ))}
+                </div>
+
                 {students.length === 0 ? (
                   <div className="text-center py-12">
                     <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -479,23 +551,31 @@ const StudentDashboard = () => {
                       <thead>
                         <tr className="border-b">
                           <th className="text-left p-4 font-medium">姓名</th>
-                          <th className="text-left p-4 font-medium">学号</th>
-                          <th className="text-left p-4 font-medium">邮箱</th>
-                          <th className="text-left p-4 font-medium">年级</th>
-                          {customFields.map(field => (
+                          <th className="text-left p-4 font-medium">班级</th>
+                          {visibleFields.includes('studentId') && <th className="text-left p-4 font-medium">学号</th>}
+                          {visibleFields.includes('email') && <th className="text-left p-4 font-medium">邮箱</th>}
+                          {visibleFields.includes('grade') && <th className="text-left p-4 font-medium">年级</th>}
+                          {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
                             <th key={field.id} className="text-left p-4 font-medium">{field.name}</th>
                           ))}
                           <th className="text-left p-4 font-medium">操作</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {students.map(student => (
+                        {students
+                          .filter(student => {
+                            if (!filterValue) return true;
+                            const fieldValue = student[filterField];
+                            return fieldValue && fieldValue.toString().toLowerCase().includes(filterValue.toLowerCase());
+                          })
+                          .map(student => (
                           <tr key={student.id} className="border-b hover:bg-muted/50 transition-smooth">
                             <td className="p-4 font-medium">{student.name}</td>
-                            <td className="p-4">{student.studentId}</td>
-                            <td className="p-4">{student.email}</td>
-                            <td className="p-4">{student.grade}</td>
-                            {customFields.map(field => (
+                            <td className="p-4">{student.class}</td>
+                            {visibleFields.includes('studentId') && <td className="p-4">{student.studentId || '-'}</td>}
+                            {visibleFields.includes('email') && <td className="p-4">{student.email || '-'}</td>}
+                            {visibleFields.includes('grade') && <td className="p-4">{student.grade || '-'}</td>}
+                            {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
                               <td key={field.id} className="p-4">{student[field.name] || '-'}</td>
                             ))}
                             <td className="p-4">
@@ -603,30 +683,37 @@ const StudentDashboard = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>姓名</Label>
+                <Label>姓名 *</Label>
                 <Input
                   value={editingStudent.name}
                   onChange={(e) => setEditingStudent({...editingStudent, name: e.target.value})}
                 />
               </div>
               <div>
+                <Label>班级 *</Label>
+                <Input
+                  value={editingStudent.class}
+                  onChange={(e) => setEditingStudent({...editingStudent, class: e.target.value})}
+                />
+              </div>
+              <div>
                 <Label>学号</Label>
                 <Input
-                  value={editingStudent.studentId}
+                  value={editingStudent.studentId || ''}
                   onChange={(e) => setEditingStudent({...editingStudent, studentId: e.target.value})}
                 />
               </div>
               <div>
                 <Label>邮箱</Label>
                 <Input
-                  value={editingStudent.email}
+                  value={editingStudent.email || ''}
                   onChange={(e) => setEditingStudent({...editingStudent, email: e.target.value})}
                 />
               </div>
               <div>
                 <Label>年级</Label>
                 <Input
-                  value={editingStudent.grade}
+                  value={editingStudent.grade || ''}
                   onChange={(e) => setEditingStudent({...editingStudent, grade: e.target.value})}
                 />
               </div>
