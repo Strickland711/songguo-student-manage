@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X } from 'lucide-react';
+import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import ScoringSystem from './ScoringSystem';
 
 interface Student {
   id: string;
@@ -55,6 +56,9 @@ const StudentDashboard = () => {
   const [visibleFields, setVisibleFields] = useState<string[]>(['name', 'class']);
   const [filterValue, setFilterValue] = useState('');
   const [filterField, setFilterField] = useState('name');
+  
+  // 登分系统状态
+  const [showScoringSystem, setShowScoringSystem] = useState(false);
   
   const { toast } = useToast();
 
@@ -312,6 +316,11 @@ const StudentDashboard = () => {
     });
   };
 
+  // 如果显示登分系统，渲染登分系统组件
+  if (showScoringSystem) {
+    return <ScoringSystem students={students} onClose={() => setShowScoringSystem(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-subtle p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -326,6 +335,14 @@ const StudentDashboard = () => {
               <Users className="w-4 h-4 mr-1" />
               {students.length} 名学生
             </Badge>
+            <Button 
+              onClick={() => setShowScoringSystem(true)} 
+              variant="outline"
+              disabled={students.length === 0}
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              进入登分系统
+            </Button>
             <Button onClick={exportToExcel} variant="outline" disabled={students.length === 0}>
               <FileSpreadsheet className="w-4 h-4 mr-2" />
               导出Excel
@@ -335,9 +352,9 @@ const StudentDashboard = () => {
 
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="grid grid-cols-3 w-fit">
-            <TabsTrigger value="dashboard">仪表板</TabsTrigger>
+            <TabsTrigger value="dashboard">数据导入</TabsTrigger>
             <TabsTrigger value="students">学生管理</TabsTrigger>
-            <TabsTrigger value="settings">设置</TabsTrigger>
+            <TabsTrigger value="settings">字段设置</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
