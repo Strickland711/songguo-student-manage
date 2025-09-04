@@ -101,7 +101,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-primary">松果记</CardTitle>
-          <CardDescription>登分系统</CardDescription>
+          <CardDescription>学生管理系统</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">
