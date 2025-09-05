@@ -52,13 +52,10 @@ const Auth = () => {
     const password = formData.get('signup-password') as string;
     const fullName = formData.get('full-name') as string;
 
-    const redirectUrl = `${window.location.origin}/`;
-
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
         }
@@ -69,7 +66,7 @@ const Auth = () => {
       setError(error.message === 'User already registered' ? '用户已存在，请直接登录' : `注册失败: ${error.message}`);
     } else {
       setError(null);
-      alert('注册成功！请检查您的邮箱进行验证。');
+      alert('注册成功！您可以立即登录使用系统。');
     }
 
     setLoading(false);
