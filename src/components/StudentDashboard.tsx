@@ -105,10 +105,11 @@ const StudentDashboard = () => {
         title: "文件解析成功",
         description: `发现 ${columns.length} 个列，${jsonData.length} 行数据，请配置列映射`,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Excel解析错误:', error);
       toast({
         title: "导入失败",
-        description: "请检查Excel文件格式是否正确",
+        description: error.message || "请检查Excel文件格式是否正确",
         variant: "destructive",
       });
     } finally {
@@ -157,19 +158,19 @@ const StudentDashboard = () => {
           class: '',
         };
 
-      // 应用列映射
-      columnMappings.forEach(mapping => {
-        if (mapping.field === 'name' || mapping.field === 'class') {
-          student[mapping.field] = row[mapping.column] || '';
-        } else {
-          // 映射到现有自定义字段
-          student[mapping.field] = row[mapping.column] || '';
-        }
-      });
+        // 应用列映射
+        columnMappings.forEach(mapping => {
+          if (mapping.field === 'name' || mapping.field === 'class') {
+            student[mapping.field] = String(row[mapping.column] || '').trim();
+          } else {
+            // 映射到现有自定义字段
+            student[mapping.field] = String(row[mapping.column] || '').trim();
+          }
+        });
 
         // 添加自定义字段数据
         selectedAsCustomFields.forEach(column => {
-          student[column] = row[column] || '';
+          student[column] = String(row[column] || '').trim();
         });
 
         return student;
@@ -211,10 +212,11 @@ const StudentDashboard = () => {
           description: `成功导入 ${newStudents.length} 名学生信息`,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('数据导入错误:', error);
       toast({
         title: "导入失败",
-        description: "数据处理出错，请重试",
+        description: error.message || "数据处理出错，请重试",
         variant: "destructive",
       });
     }
@@ -404,14 +406,15 @@ const StudentDashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                  <div 
+                    className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => document.getElementById('excel-upload')?.click()}
+                  >
                     <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                     <div className="space-y-2">
-                      <Label htmlFor="excel-upload" className="cursor-pointer">
-                        <span className="text-lg font-medium text-primary">
-                          点击上传Excel文件
-                        </span>
-                      </Label>
+                      <span className="text-lg font-medium text-primary">
+                        点击上传Excel文件
+                      </span>
                       <p className="text-sm text-muted-foreground">
                         支持.xlsx和.xls格式，上传后可自定义列与字段的映射关系
                       </p>
@@ -474,8 +477,25 @@ const StudentDashboard = () => {
                           
                           <div className="flex-1">
                             <Select
-                              value={currentMapping?.field || 'none'}
-                              onValueChange={(value) => updateColumnMapping(column, value)}
+                              value={
+                                currentMapping?.field || 
+                                (isCustomField ? `new_field_${column}` : 'none')
+                              }
+                              onValueChange={(value) => {
+                                if (value.startsWith('new_field_')) {
+                                  // 选择了新建自定义字段
+                                  updateColumnMapping(column, 'none');
+                                  if (!selectedAsCustomFields.includes(column)) {
+                                    toggleCustomField(column);
+                                  }
+                                } else {
+                                  // 选择了其他字段映射
+                                  updateColumnMapping(column, value);
+                                  if (selectedAsCustomFields.includes(column)) {
+                                    toggleCustomField(column);
+                                  }
+                                }
+                              }}
                             >
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="选择字段" />
@@ -486,27 +506,15 @@ const StudentDashboard = () => {
                                  <SelectItem value="class">班级 (必填)</SelectItem>
                                  {customFields.map(field => (
                                    <SelectItem key={field.id} value={field.name}>
-                                     {field.name} (自定义字段)
+                                     {field.name} (现有自定义字段)
                                    </SelectItem>
                                  ))}
-                               </SelectContent>
+                                 <SelectItem value={`new_field_${column}`}>
+                                   作为新建自定义字段
+                                 </SelectItem>
+                              </SelectContent>
                             </Select>
                           </div>
-
-                           <div className="flex items-center gap-2">
-                             <input
-                               type="checkbox"
-                               checked={isCustomField}
-                               onChange={() => toggleCustomField(column)}
-                               disabled={currentMapping?.field && currentMapping.field !== 'none'}
-                               className="rounded"
-                             />
-                             <span className="text-sm">
-                               {currentMapping?.field && currentMapping.field !== 'none' 
-                                 ? '已映射' 
-                                 : '作为新建自定义字段'}
-                             </span>
-                           </div>
                         </div>
                       );
                     })}
