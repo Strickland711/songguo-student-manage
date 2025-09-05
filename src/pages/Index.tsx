@@ -29,17 +29,9 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <div className="text-center flex-1">
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-4">
-              松果记登分系统
-            </h1>
-            <p className="text-lg text-slate-600 dark:text-slate-400">
-              智能化学生成绩管理平台
-            </p>
-          </div>
-          <div className="flex flex-col items-end">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+        <div className="flex justify-end items-center mb-6">
+          <div className="flex items-center gap-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               欢迎，{user.email}
             </p>
             <Button variant="outline" onClick={signOut}>

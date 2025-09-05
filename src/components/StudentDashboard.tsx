@@ -10,19 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
-
-interface Student {
-  id: string;
-  name: string;
-  class: string;
-  [key: string]: any; // 允许动态字段
-}
-
-interface CustomField {
-  id: string;
-  name: string;
-  type: 'text' | 'number' | 'date' | 'email';
-}
+import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
 
 interface ColumnMapping {
   column: string;
@@ -35,8 +23,18 @@ interface ExcelData {
 }
 
 const StudentDashboard = () => {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const {
+    students,
+    customFields,
+    loading: dataLoading,
+    setStudents,
+    setCustomFields,
+    saveStudents,
+    saveCustomFields,
+    deleteStudent: deleteStudentFromDB,
+    deleteCustomField: deleteCustomFieldFromDB,
+    saveScoringRecord
+  } = useStudentData();
   const [uploading, setUploading] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [newFieldName, setNewFieldName] = useState('');
@@ -136,7 +134,7 @@ const StudentDashboard = () => {
     );
   };
 
-  const confirmImport = () => {
+  const confirmImport = async () => {
     if (!excelData) return;
 
     try {
@@ -147,8 +145,9 @@ const StudentDashboard = () => {
         type: 'text' as const,
       }));
 
-      // 更新自定义字段
-      setCustomFields(prev => [...prev, ...newCustomFields]);
+      // 更新自定义字段并保存到数据库
+      const updatedFields = [...customFields, ...newCustomFields];
+      await saveCustomFields(updatedFields);
 
       // 创建学生数据
       const newStudents: Student[] = excelData.rows.map((row: any, index) => {
@@ -198,8 +197,9 @@ const StudentDashboard = () => {
         setPendingStudents(uniqueStudents);
         setShowDuplicateDialog(true);
       } else {
-        // 没有重复，直接添加
-        setStudents(prev => [...prev, ...newStudents]);
+        // 没有重复，直接添加并保存到数据库
+        const allStudents = [...students, ...newStudents];
+        await saveStudents(allStudents);
         
         // 重置状态
         setExcelData(null);
@@ -220,39 +220,49 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleDuplicateChoice = (overwrite: boolean) => {
-    if (overwrite) {
-      // 覆盖重复学生信息
-      const updatedStudents = students.map(existingStudent => {
-        const duplicate = duplicateStudents.find(d => 
-          d.name === existingStudent.name && d.class === existingStudent.class
-        );
-        return duplicate ? { ...duplicate, id: existingStudent.id } : existingStudent;
-      });
-      
-      setStudents([...updatedStudents, ...pendingStudents]);
-      
+  const handleDuplicateChoice = async (overwrite: boolean) => {
+    try {
+      if (overwrite) {
+        // 覆盖重复学生信息
+        const updatedStudents = students.map(existingStudent => {
+          const duplicate = duplicateStudents.find(d => 
+            d.name === existingStudent.name && d.class === existingStudent.class
+          );
+          return duplicate ? { ...duplicate, id: existingStudent.id } : existingStudent;
+        });
+        
+        const allStudents = [...updatedStudents, ...pendingStudents];
+        await saveStudents(allStudents);
+        
+        toast({
+          title: "导入成功",
+          description: `成功导入 ${pendingStudents.length} 名新学生，覆盖 ${duplicateStudents.length} 名重复学生信息`,
+        });
+      } else {
+        // 跳过重复学生，只导入新学生
+        const allStudents = [...students, ...pendingStudents];
+        await saveStudents(allStudents);
+        
+        toast({
+          title: "导入成功",
+          description: `成功导入 ${pendingStudents.length} 名新学生，跳过 ${duplicateStudents.length} 名重复学生`,
+        });
+      }
+
+      // 重置状态
+      setExcelData(null);
+      setColumnMappings([]);
+      setSelectedAsCustomFields([]);
+      setDuplicateStudents([]);
+      setPendingStudents([]);
+      setShowDuplicateDialog(false);
+    } catch (error) {
       toast({
-        title: "导入成功",
-        description: `成功导入 ${pendingStudents.length} 名新学生，覆盖 ${duplicateStudents.length} 名重复学生信息`,
-      });
-    } else {
-      // 跳过重复学生，只导入新学生
-      setStudents(prev => [...prev, ...pendingStudents]);
-      
-      toast({
-        title: "导入成功",
-        description: `成功导入 ${pendingStudents.length} 名新学生，跳过 ${duplicateStudents.length} 名重复学生`,
+        title: "保存失败",
+        description: "数据保存出错，请重试",
+        variant: "destructive",
       });
     }
-
-    // 重置状态
-    setExcelData(null);
-    setColumnMappings([]);
-    setSelectedAsCustomFields([]);
-    setDuplicateStudents([]);
-    setPendingStudents([]);
-    setShowDuplicateDialog(false);
   };
 
   const cancelImport = () => {
@@ -261,7 +271,7 @@ const StudentDashboard = () => {
     setSelectedAsCustomFields([]);
   };
 
-  const addCustomField = () => {
+  const addCustomField = async () => {
     if (!newFieldName.trim()) return;
     
     const newField: CustomField = {
@@ -270,44 +280,50 @@ const StudentDashboard = () => {
       type: newFieldType,
     };
     
-    setCustomFields(prev => [...prev, newField]);
-    setNewFieldName('');
-    setNewFieldType('text');
-    toast({
-      title: "字段添加成功",
-      description: `已添加自定义字段: ${newFieldName}`,
-    });
+    try {
+      const updatedFields = [...customFields, newField];
+      await saveCustomFields(updatedFields);
+      setNewFieldName('');
+      setNewFieldType('text');
+      toast({
+        title: "字段添加成功",
+        description: `已添加自定义字段: ${newFieldName}`,
+      });
+    } catch (error) {
+      // Error is already handled in saveCustomFields
+    }
   };
 
-  const removeCustomField = (fieldId: string) => {
-    setCustomFields(prev => prev.filter(field => field.id !== fieldId));
-      // 同时从所有学生数据中移除该字段
-      const fieldName = customFields.find(f => f.id === fieldId)?.name;
-      if (fieldName) {
-        setStudents(prev => prev.map(student => {
-          const { [fieldName]: removed, ...rest } = student;
-          return rest as Student;
-        }));
-      }
+  const removeCustomField = async (fieldId: string) => {
+    try {
+      await deleteCustomFieldFromDB(fieldId);
+    } catch (error) {
+      // Error is already handled in deleteCustomFieldFromDB
+    }
   };
 
-  const updateStudent = (updatedStudent: Student) => {
-    setStudents(prev => prev.map(student => 
-      student.id === updatedStudent.id ? updatedStudent : student
-    ));
-    setEditingStudent(null);
-    toast({
-      title: "更新成功",
-      description: "学生信息已更新",
-    });
+  const updateStudent = async (updatedStudent: Student) => {
+    try {
+      const updatedStudents = students.map(student => 
+        student.id === updatedStudent.id ? updatedStudent : student
+      );
+      await saveStudents(updatedStudents);
+      setEditingStudent(null);
+      toast({
+        title: "更新成功",
+        description: "学生信息已更新",
+      });
+    } catch (error) {
+      // Error is already handled in saveStudents
+    }
   };
 
-  const deleteStudent = (studentId: string) => {
-    setStudents(prev => prev.filter(student => student.id !== studentId));
-    toast({
-      title: "删除成功",
-      description: "学生信息已删除",
-    });
+  const deleteStudent = async (studentId: string) => {
+    try {
+      await deleteStudentFromDB(studentId);
+    } catch (error) {
+      // Error is already handled in deleteStudentFromDB
+    }
   };
 
   const exportToExcel = () => {
@@ -324,6 +340,18 @@ const StudentDashboard = () => {
   // 如果显示登分系统，渲染登分系统组件
   if (showScoringSystem) {
     return <ScoringSystem students={students} onClose={() => setShowScoringSystem(false)} />;
+  }
+
+  // 显示加载状态
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">加载学生数据中...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
