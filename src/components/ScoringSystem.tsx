@@ -23,13 +23,7 @@ import {
   Keyboard
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-
-interface Student {
-  id: string;
-  name: string;
-  class: string;
-  [key: string]: any;
-}
+import { Student } from '@/hooks/useStudentData';
 
 interface ExamConfig {
   id: string;

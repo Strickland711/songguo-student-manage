@@ -4,14 +4,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
 export interface Student {
-  id: string;
+  id?: string;
   name: string;
   class: string;
   [key: string]: any;
 }
 
 export interface CustomField {
-  id: string;
+  id?: string;
   name: string;
   type: 'text' | 'number' | 'date' | 'email';
 }
@@ -107,23 +107,55 @@ export const useStudentData = () => {
     if (!user) return;
 
     try {
-      // Extract base student data (without custom fields)
-      const studentsToSave = newStudents.map(student => ({
-        id: student.id,
-        user_id: user.id,
-        name: student.name,
-        class: student.class
-      }));
+      // Separate existing students (with id) from new students (without id)
+      const existingStudents = newStudents.filter(student => student.id);
+      const newStudentsWithoutId = newStudents.filter(student => !student.id);
 
-      // Upsert students
-      const { error: studentsError } = await supabase
-        .from('students')
-        .upsert(studentsToSave, { onConflict: 'id' });
+      // Insert new students and get their generated IDs
+      const insertedStudents = [];
+      if (newStudentsWithoutId.length > 0) {
+        const studentsToInsert = newStudentsWithoutId.map(student => ({
+          user_id: user.id,
+          name: student.name,
+          class: student.class
+        }));
 
-      if (studentsError) throw studentsError;
+        const { data: insertedData, error: insertError } = await supabase
+          .from('students')
+          .insert(studentsToInsert)
+          .select();
+
+        if (insertError) throw insertError;
+        insertedStudents.push(...(insertedData || []));
+      }
+
+      // Update existing students
+      if (existingStudents.length > 0) {
+        const studentsToUpdate = existingStudents.map(student => ({
+          id: student.id,
+          user_id: user.id,
+          name: student.name,
+          class: student.class
+        }));
+
+        const { error: updateError } = await supabase
+          .from('students')
+          .upsert(studentsToUpdate, { onConflict: 'id' });
+
+        if (updateError) throw updateError;
+      }
+
+      // Combine all students with their correct IDs
+      const allSavedStudents = [
+        ...existingStudents,
+        ...insertedStudents.map((inserted, index) => ({
+          ...newStudentsWithoutId[index],
+          id: inserted.id
+        }))
+      ];
 
       // Handle custom field values
-      for (const student of newStudents) {
+      for (const student of allSavedStudents) {
         for (const field of customFields) {
           if (student[field.name] !== undefined) {
             const { error: valueError } = await supabase
@@ -139,7 +171,7 @@ export const useStudentData = () => {
         }
       }
 
-      setStudents(newStudents);
+      setStudents(allSavedStudents);
       
       toast({
         title: "保存成功",
@@ -160,18 +192,54 @@ export const useStudentData = () => {
     if (!user) return;
 
     try {
-      const fieldsToSave = newFields.map(field => ({
-        ...field,
-        user_id: user.id
-      }));
+      // Separate existing fields (with id) from new fields (without id)
+      const existingFields = newFields.filter(field => field.id);
+      const newFieldsWithoutId = newFields.filter(field => !field.id);
 
-      const { error } = await supabase
-        .from('custom_fields')
-        .upsert(fieldsToSave, { onConflict: 'id' });
+      // Insert new fields and get their generated IDs
+      const insertedFields = [];
+      if (newFieldsWithoutId.length > 0) {
+        const fieldsToInsert = newFieldsWithoutId.map(field => ({
+          user_id: user.id,
+          name: field.name,
+          type: field.type
+        }));
 
-      if (error) throw error;
+        const { data: insertedData, error: insertError } = await supabase
+          .from('custom_fields')
+          .insert(fieldsToInsert)
+          .select();
 
-      setCustomFields(newFields);
+        if (insertError) throw insertError;
+        insertedFields.push(...(insertedData || []));
+      }
+
+      // Update existing fields
+      if (existingFields.length > 0) {
+        const fieldsToUpdate = existingFields.map(field => ({
+          id: field.id,
+          user_id: user.id,
+          name: field.name,
+          type: field.type
+        }));
+
+        const { error: updateError } = await supabase
+          .from('custom_fields')
+          .upsert(fieldsToUpdate, { onConflict: 'id' });
+
+        if (updateError) throw updateError;
+      }
+
+      // Combine all fields with their correct IDs
+      const allSavedFields = [
+        ...existingFields,
+        ...insertedFields.map((inserted, index) => ({
+          ...newFieldsWithoutId[index],
+          id: inserted.id
+        }))
+      ];
+
+      setCustomFields(allSavedFields);
     } catch (error: any) {
       toast({
         title: "保存字段失败",

@@ -139,9 +139,8 @@ const StudentDashboard = () => {
     if (!excelData) return;
 
     try {
-      // 创建新的自定义字段
+      // 创建新的自定义字段（不传id，让数据库自动生成UUID）
       const newCustomFields = selectedAsCustomFields.map(column => ({
-        id: `field-${Date.now()}-${column}`,
         name: column,
         type: 'text' as const,
       }));
@@ -150,10 +149,9 @@ const StudentDashboard = () => {
       const updatedFields = [...customFields, ...newCustomFields];
       await saveCustomFields(updatedFields);
 
-      // 创建学生数据
+      // 创建学生数据（不传id，让数据库自动生成UUID）
       const newStudents: Student[] = excelData.rows.map((row: any, index) => {
         const student: Student = {
-          id: `student-${Date.now()}-${index}`,
           name: '',
           class: '',
         };
