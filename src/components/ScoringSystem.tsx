@@ -92,6 +92,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   
   // 历史记录状态
   const [selectedHistoryExam, setSelectedHistoryExam] = useState<string | null>(null);
+  const [showStudentDetails, setShowStudentDetails] = useState<{ [examId: string]: boolean }>({});
   
   // 登分时学生选择状态
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -224,6 +225,17 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
       toast({
         title: "创建失败",
         description: "请填写完整的考试信息",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 检查考试名称是否重复
+    const existingExam = exams.find(exam => exam.name === examName.trim());
+    if (existingExam) {
+      toast({
+        title: "创建失败",
+        description: "考试名称已存在，请使用不同的名称",
         variant: "destructive",
       });
       return;
@@ -787,19 +799,32 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                     <CardContent>
                       <div className="max-h-96 overflow-y-auto space-y-2">
                         {filteredStudents.map((student, index) => (
-                          <Button
+                          <div
                             key={student.id}
-                            variant={index === currentStudentIndex ? "default" : "ghost"}
-                            size="sm"
-                            onClick={() => selectStudent(student.id!)}
-                            className="w-full justify-start"
+                            className={`p-2 rounded-md border ${
+                              index === currentStudentIndex 
+                                ? 'bg-primary text-primary-foreground border-primary' 
+                                : index < currentStudentIndex 
+                                  ? 'bg-muted text-muted-foreground border-muted' 
+                                  : 'border-border'
+                            }`}
                           >
-                            <span className="mr-2">{index + 1}.</span>
-                            {student.name}
-                            <span className="ml-auto text-xs text-muted-foreground">
-                              {student.class}
-                            </span>
-                          </Button>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{index + 1}.</span>
+                                <span>{student.name}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {student.class}
+                              </div>
+                            </div>
+                            {index < currentStudentIndex && (
+                              <div className="text-xs mt-1 text-emerald-600">✓ 已完成</div>
+                            )}
+                            {index === currentStudentIndex && (
+                              <div className="text-xs mt-1">正在评分...</div>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </CardContent>
@@ -993,55 +1018,70 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                             
                             {results.length > 0 ? (
                               <div className="mt-6">
-                                <h4 className="text-md font-medium mb-4">学生成绩详情</h4>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full border-collapse">
-                                    <thead>
-                                      <tr className="border-b">
-                                        <th className="text-left py-2 px-4">姓名</th>
-                                        <th className="text-left py-2 px-4">班级</th>
-                                        <th className="text-center py-2 px-4">总分</th>
-                                        <th className="text-center py-2 px-4">正确率</th>
-                                        <th className="text-center py-2 px-4">各题得分</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {results.map(result => {
-                                        const student = students.find(s => s.id === result.student_id);
-                                        return (
-                                          <tr key={result.id} className="border-b hover:bg-muted/50">
-                                            <td className="py-2 px-4">{student?.name}</td>
-                                            <td className="py-2 px-4">{student?.class}</td>
-                                            <td className="text-center py-2 px-4">
-                                              <Badge variant="secondary">
-                                                {result.total_score}/{exam.scores.reduce((sum, s) => sum + s, 0)}
-                                              </Badge>
-                                            </td>
-                                            <td className="text-center py-2 px-4">
-                                              {((result.correct_count / exam.total_questions) * 100).toFixed(1)}%
-                                            </td>
-                                            <td className="text-center py-2 px-4">
-                                              <div className="flex gap-1 justify-center flex-wrap">
-                                                {Array.from({ length: exam.total_questions }, (_, i) => {
-                                                  const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === i);
-                                                  return (
-                                                    <Badge 
-                                                      key={i} 
-                                                      variant={answer?.isCorrect ? "default" : "destructive"}
-                                                      className="text-xs"
-                                                    >
-                                                      {i + 1}: {answer ? answer.score : 0}
-                                                    </Badge>
-                                                  );
-                                                })}
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
+                                <div className="flex items-center justify-between mb-4">
+                                  <h4 className="text-md font-medium">学生成绩详情</h4>
+                                  <Button
+                                    onClick={() => setShowStudentDetails(prev => ({ 
+                                      ...prev, 
+                                      [exam.id!]: !prev[exam.id!] 
+                                    }))}
+                                    variant="outline"
+                                    size="sm"
+                                  >
+                                    {showStudentDetails[exam.id!] ? '隐藏详情' : '查看详情'}
+                                  </Button>
                                 </div>
+                                
+                                {showStudentDetails[exam.id!] && (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full border-collapse">
+                                      <thead>
+                                        <tr className="border-b">
+                                          <th className="text-left py-2 px-4">姓名</th>
+                                          <th className="text-left py-2 px-4">班级</th>
+                                          <th className="text-center py-2 px-4">总分</th>
+                                          <th className="text-center py-2 px-4">正确率</th>
+                                          <th className="text-center py-2 px-4">各题得分</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {results.map(result => {
+                                          const student = students.find(s => s.id === result.student_id);
+                                          return (
+                                            <tr key={result.id} className="border-b hover:bg-muted/50">
+                                              <td className="py-2 px-4">{student?.name}</td>
+                                              <td className="py-2 px-4">{student?.class}</td>
+                                              <td className="text-center py-2 px-4">
+                                                <Badge variant="secondary">
+                                                  {result.total_score}/{exam.scores.reduce((sum, s) => sum + s, 0)}
+                                                </Badge>
+                                              </td>
+                                              <td className="text-center py-2 px-4">
+                                                {((result.correct_count / exam.total_questions) * 100).toFixed(1)}%
+                                              </td>
+                                              <td className="text-center py-2 px-4">
+                                                <div className="flex gap-1 justify-center flex-wrap">
+                                                  {Array.from({ length: exam.total_questions }, (_, i) => {
+                                                    const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === i);
+                                                    return (
+                                                      <Badge 
+                                                        key={i} 
+                                                        variant={answer?.isCorrect ? "default" : "destructive"}
+                                                        className="text-xs"
+                                                      >
+                                                        {i + 1}: {answer ? answer.score : 0}
+                                                      </Badge>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div className="text-center py-8 text-muted-foreground">
