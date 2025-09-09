@@ -154,10 +154,18 @@ export const useStudentData = () => {
         }))
       ];
 
+      // 重新获取最新的自定义字段数据（包含正确的ID）
+      const { data: latestFields } = await supabase
+        .from('custom_fields')
+        .select('*')
+        .eq('user_id', user.id);
+
+      const fieldsToUse = latestFields || customFields;
+
       // Handle custom field values
       for (const student of allSavedStudents) {
-        for (const field of customFields) {
-          if (student[field.name] !== undefined) {
+        for (const field of fieldsToUse) {
+          if (student[field.name] !== undefined && student[field.name] !== '') {
             const { error: valueError } = await supabase
               .from('student_field_values')
               .upsert({
@@ -166,7 +174,10 @@ export const useStudentData = () => {
                 value: student[field.name]
               }, { onConflict: 'student_id,field_id' });
 
-            if (valueError) throw valueError;
+            if (valueError) {
+              console.error('保存自定义字段值失败:', valueError);
+              throw valueError;
+            }
           }
         }
       }

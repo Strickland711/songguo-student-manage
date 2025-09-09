@@ -12,6 +12,91 @@ import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
 
+const BatchClassUpdate = ({ students, onUpdateStudents }: { 
+  students: Student[], 
+  onUpdateStudents: (students: Student[]) => Promise<void> 
+}) => {
+  const [oldClassName, setOldClassName] = useState('');
+  const [newClassName, setNewClassName] = useState('');
+  const { toast } = useToast();
+
+  const classNames = Array.from(new Set(students.map(s => s.class).filter(Boolean))).sort();
+
+  const handleBatchUpdate = async () => {
+    if (!oldClassName || !newClassName) {
+      toast({
+        title: "输入不完整",
+        description: "请选择要修改的班级和输入新班级名称",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const updatedStudents = students.map(student => 
+        student.class === oldClassName 
+          ? { ...student, class: newClassName }
+          : student
+      );
+      
+      await onUpdateStudents(updatedStudents);
+      setOldClassName('');
+      setNewClassName('');
+      
+      toast({
+        title: "批量修改成功",
+        description: `已将班级"${oldClassName}"的学生修改为"${newClassName}"`,
+      });
+    } catch (error) {
+      toast({
+        title: "批量修改失败",
+        description: "请稍后重试",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (classNames.length === 0) return null;
+
+  return (
+    <div className="p-4 border rounded-lg bg-muted/30">
+      <h4 className="font-medium mb-3">批量修改班级名称</h4>
+      <div className="flex gap-3 items-end">
+        <div className="flex-1">
+          <Label htmlFor="old-class">选择要修改的班级</Label>
+          <Select value={oldClassName} onValueChange={setOldClassName}>
+            <SelectTrigger>
+              <SelectValue placeholder="选择班级" />
+            </SelectTrigger>
+            <SelectContent>
+              {classNames.map(className => (
+                <SelectItem key={className} value={className}>
+                  {className} ({students.filter(s => s.class === className).length}人)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1">
+          <Label htmlFor="new-class">新班级名称</Label>
+          <Input
+            id="new-class"
+            value={newClassName}
+            onChange={(e) => setNewClassName(e.target.value)}
+            placeholder="输入新班级名称"
+          />
+        </div>
+        <Button 
+          onClick={handleBatchUpdate}
+          disabled={!oldClassName || !newClassName}
+        >
+          批量修改
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 interface ColumnMapping {
   column: string;
   field: string;
@@ -33,7 +118,8 @@ const StudentDashboard = () => {
     saveCustomFields,
     deleteStudent: deleteStudentFromDB,
     deleteCustomField: deleteCustomFieldFromDB,
-    saveScoringRecord
+    saveScoringRecord,
+    loadData
   } = useStudentData();
   const [uploading, setUploading] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -145,9 +231,16 @@ const StudentDashboard = () => {
         type: 'text' as const,
       }));
 
-      // 更新自定义字段并保存到数据库
-      const updatedFields = [...customFields, ...newCustomFields];
-      await saveCustomFields(updatedFields);
+      // 更新自定义字段并保存到数据库，等待完成
+      let updatedFields = [...customFields];
+      if (newCustomFields.length > 0) {
+        updatedFields = [...customFields, ...newCustomFields];
+        await saveCustomFields(updatedFields);
+        // 重新加载数据以获取正确的字段ID
+        await loadData();
+        // 使用更新后的字段列表
+        updatedFields = customFields;
+      }
 
       // 创建学生数据（不传id，让数据库自动生成UUID）
       const newStudents: Student[] = excelData.rows.map((row: any, index) => {
@@ -587,38 +680,44 @@ const StudentDashboard = () => {
 
           <TabsContent value="students" className="space-y-6">
             {/* Students Filter and Display Controls */}
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle>学生列表</CardTitle>
-                <CardDescription>管理所有学生信息</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex-1 min-w-48">
-                    <Label htmlFor="filter">筛选学生</Label>
-                    <Input
-                      id="filter"
-                      placeholder="输入搜索内容..."
-                      value={filterValue}
-                      onChange={(e) => setFilterValue(e.target.value)}
-                    />
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle>学生列表</CardTitle>
+                  <CardDescription>管理所有学生信息</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex-1 min-w-48">
+                      <Label htmlFor="filter">筛选学生</Label>
+                      <Input
+                        id="filter"
+                        placeholder="输入搜索内容..."
+                        value={filterValue}
+                        onChange={(e) => setFilterValue(e.target.value)}
+                      />
+                    </div>
+                    <div className="w-32">
+                      <Label htmlFor="filter-field">筛选字段</Label>
+                      <Select value={filterField} onValueChange={setFilterField}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                         <SelectContent>
+                           <SelectItem value="name">姓名</SelectItem>
+                           <SelectItem value="class">班级</SelectItem>
+                           {customFields.filter(f => visibleFields.includes(f.name)).map(field => (
+                             <SelectItem key={field.id} value={field.name}>{field.name}</SelectItem>
+                           ))}
+                         </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="w-32">
-                    <Label htmlFor="filter-field">筛选字段</Label>
-                    <Select value={filterField} onValueChange={setFilterField}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="name">姓名</SelectItem>
-                         <SelectItem value="class">班级</SelectItem>
-                         {customFields.filter(f => visibleFields.includes(f.name)).map(field => (
-                           <SelectItem key={field.id} value={field.name}>{field.name}</SelectItem>
-                         ))}
-                       </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+
+                  {/* 批量班级修改区域 */}
+                  <BatchClassUpdate
+                    students={students}
+                    onUpdateStudents={saveStudents}
+                  />
 
                  <div className="flex flex-wrap gap-2">
                    <Label className="text-sm font-medium">显示字段:</Label>
