@@ -309,6 +309,16 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     }
   };
 
+  const jumpToQuestion = (questionIndex: number) => {
+    if (!currentExam || questionIndex < 0 || questionIndex >= currentExam.total_questions) return;
+    setCurrentQuestionIndex(questionIndex);
+  };
+
+  const getQuestionAnswer = (questionIndex: number) => {
+    if (!currentStudent) return null;
+    return currentAnswers.find(a => a.studentId === currentStudent.id && a.questionIndex === questionIndex);
+  };
+
   const handleAnswer = (isCorrect: boolean) => {
     if (!currentExam || currentStudentIndex >= filteredStudents.length) return;
 
@@ -451,9 +461,14 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     });
   };
 
-  const finishScoring = () => {
+  const finishScoring = async () => {
     setIsScoring(false);
-    loadExamResults(); // 重新加载结果
+    // 重新加载结果并等待完成
+    await loadExamResults();
+    // 强制重新加载以确保所有数据都显示
+    setTimeout(async () => {
+      await loadExamResults();
+    }, 500);
     setActiveTab('results');
     toast({
       title: "评分完成",
@@ -781,14 +796,56 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-6">
-                        {currentStudent && (
+                        {currentStudent && currentExam && (
                           <>
+                            {/* 题号导航 */}
+                            <div className="space-y-4">
+                              <div className="text-center">
+                                <h3 className="text-lg font-medium mb-3">题目导航</h3>
+                                <div className="flex flex-wrap gap-2 justify-center">
+                                  {Array.from({ length: currentExam.total_questions }, (_, i) => {
+                                    const answer = getQuestionAnswer(i);
+                                    const isCurrentQuestion = i === currentQuestionIndex;
+                                    const isAnswered = answer !== null;
+                                    
+                                    return (
+                                      <Button
+                                        key={i}
+                                        onClick={() => jumpToQuestion(i)}
+                                        size="sm"
+                                        variant={isCurrentQuestion ? "default" : "outline"}
+                                        className={`
+                                          w-10 h-10 rounded-full font-medium
+                                          ${isCurrentQuestion 
+                                            ? 'bg-primary text-primary-foreground' 
+                                            : isAnswered 
+                                              ? answer?.isCorrect 
+                                                ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200' 
+                                                : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
+                                              : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
+                                          }
+                                        `}
+                                      >
+                                        {i + 1}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-2">
+                                  点击题号可跳转到对应题目 | 绿色=正确 红色=错误 灰色=未答
+                                </div>
+                              </div>
+                            </div>
+
                             <div className="text-center space-y-4">
                               <div className="text-2xl font-bold text-primary">
                                 {currentStudent.name}
                               </div>
                               <div className="text-muted-foreground">
                                 {currentStudent.class} | 第 {currentStudentIndex + 1} 位学生
+                              </div>
+                              <div className="text-sm text-accent">
+                                第 {currentQuestionIndex + 1} 题 / 共 {currentExam.total_questions} 题 | 本题分值: {currentExam.scores[currentQuestionIndex]} 分
                               </div>
                             </div>
 
