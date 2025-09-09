@@ -306,6 +306,15 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
       setCurrentStudentIndex(index);
       setCurrentQuestionIndex(0);
       setSelectedStudentId(studentId);
+      
+      // 加载该学生已有的答案数据（如果有的话）
+      const existingResult = getStudentExamResult(studentId);
+      if (existingResult && existingResult.answers) {
+        const studentAnswers = existingResult.answers as unknown as StudentAnswer[];
+        // 将该学生的答案添加到当前答案中，但保留其他学生的答案
+        const otherStudentsAnswers = currentAnswers.filter(a => a.studentId !== studentId);
+        setCurrentAnswers([...otherStudentsAnswers, ...studentAnswers]);
+      }
     }
   };
 
@@ -415,16 +424,26 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
         throw error;
       }
 
+      // 重新加载考试结果以确保数据同步
+      await loadExamResults();
+
       toast({
         title: "学生评分完成",
         description: `${student.name} 总分: ${totalScore}/${currentExam.scores.reduce((sum, s) => sum + s, 0)}`,
       });
 
-      // 下一个学生
-      if (currentStudentIndex < filteredStudents.length - 1) {
-        setCurrentStudentIndex(prev => prev + 1);
+      // 检查是否所有学生都完成评分，如果是手动选择学生则不自动跳转
+      if (selectedStudentId) {
+        // 手动选择的学生评分完成，保持在当前学生
+        setSelectedStudentId(null);
+        return;
+      }
+
+      // 自动模式：继续下一个学生
+      const nextUncompletedIndex = findNextUncompletedStudent();
+      if (nextUncompletedIndex !== -1) {
+        setCurrentStudentIndex(nextUncompletedIndex);
         setCurrentQuestionIndex(0);
-        setSelectedStudentId(null); // 清除选中的学生ID
       } else {
         // 全部完成
         finishScoring();
@@ -437,6 +456,26 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
         variant: "destructive",
       });
     }
+  };
+
+  // 查找下一个未完成评分的学生
+  const findNextUncompletedStudent = () => {
+    if (!currentExam) return -1;
+    
+    for (let i = 0; i < filteredStudents.length; i++) {
+      const student = filteredStudents[i];
+      const hasResult = examResults.some(r => r.exam_id === currentExam.id && r.student_id === student.id);
+      if (!hasResult) {
+        return i;
+      }
+    }
+    return -1; // 所有学生都已完成
+  };
+
+  // 获取学生的考试结果
+  const getStudentExamResult = (studentId: string) => {
+    if (!currentExam) return null;
+    return examResults.find(r => r.exam_id === currentExam.id && r.student_id === studentId);
   };
 
   const undoLastAnswer = () => {
@@ -887,35 +926,56 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="max-h-96 overflow-y-auto space-y-2">
-                        {filteredStudents.map((student, index) => (
-                          <div
-                            key={student.id}
-                            className={`p-2 rounded-md border ${
-                              index === currentStudentIndex 
-                                ? 'bg-primary text-primary-foreground border-primary' 
-                                : index < currentStudentIndex 
-                                  ? 'bg-muted text-muted-foreground border-muted' 
-                                  : 'border-border'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium">{index + 1}.</span>
-                                <span>{student.name}</span>
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {student.class}
-                              </div>
-                            </div>
-                            {index < currentStudentIndex && (
-                              <div className="text-xs mt-1 text-emerald-600">✓ 已完成</div>
-                            )}
-                            {index === currentStudentIndex && (
-                              <div className="text-xs mt-1">正在评分...</div>
-                            )}
-                          </div>
-                        ))}
+                       <div className="max-h-96 overflow-y-auto space-y-2">
+                         {filteredStudents.map((student, index) => {
+                           const studentResult = getStudentExamResult(student.id!);
+                           const isCompleted = !!studentResult;
+                           const isCurrent = index === currentStudentIndex && !selectedStudentId;
+                           const isSelected = selectedStudentId === student.id;
+                           
+                           return (
+                             <div
+                               key={student.id}
+                               onClick={() => selectStudent(student.id!)}
+                               className={`p-3 rounded-md border cursor-pointer transition-all hover:shadow-sm ${
+                                 isSelected || isCurrent
+                                   ? 'bg-primary text-primary-foreground border-primary' 
+                                   : isCompleted
+                                     ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100' 
+                                     : 'border-border hover:border-primary/50'
+                               }`}
+                             >
+                               <div className="flex items-center justify-between">
+                                 <div className="flex items-center gap-2">
+                                   <span className="text-sm font-medium">{index + 1}.</span>
+                                   <span className="font-medium">{student.name}</span>
+                                 </div>
+                                 <div className="text-xs">
+                                   {student.class}
+                                 </div>
+                               </div>
+                               <div className="flex items-center justify-between mt-2">
+                                 <div className="flex items-center gap-2">
+                                   {isCompleted && (
+                                     <Badge variant="secondary" className="text-xs bg-emerald-500 text-white">
+                                       ✓ 已评分
+                                     </Badge>
+                                   )}
+                                   {(isSelected || isCurrent) && (
+                                     <Badge variant="secondary" className="text-xs">
+                                       {isSelected ? '已选中' : '正在评分'}
+                                     </Badge>
+                                   )}
+                                 </div>
+                                 {isCompleted && (
+                                   <div className="text-xs">
+                                     {studentResult?.total_score}/{currentExam?.scores.reduce((sum, s) => sum + s, 0)}分
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                           );
+                         })}
                       </div>
                     </CardContent>
                   </Card>
