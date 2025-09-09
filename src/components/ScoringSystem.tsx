@@ -309,7 +309,21 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
       score,
     };
 
-    const newAnswers = [...currentAnswers, answer];
+    // 检查是否已经对当前学生的当前题目进行过评分，如果有则覆盖
+    const existingAnswerIndex = currentAnswers.findIndex(
+      a => a.studentId === student.id! && a.questionIndex === currentQuestionIndex
+    );
+    
+    let newAnswers: StudentAnswer[];
+    if (existingAnswerIndex !== -1) {
+      // 覆盖现有答案
+      newAnswers = [...currentAnswers];
+      newAnswers[existingAnswerIndex] = answer;
+    } else {
+      // 添加新答案
+      newAnswers = [...currentAnswers, answer];
+    }
+    
     setCurrentAnswers(newAnswers);
     
     // 保存到历史记录用于撤销
@@ -872,28 +886,85 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                       ))}
                     </TabsList>
                     
-                    {exams.map(exam => (
-                      <TabsContent key={exam.id} value={exam.id!} className="mt-6">
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="text-lg font-semibold">{exam.name}</h3>
-                              <p className="text-sm text-muted-foreground">
-                                创建时间: {exam.created_at ? new Date(exam.created_at).toLocaleString() : '未知'}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-lg font-semibold">
-                                平均分: {getExamAverageScore(exam.id!)} 分
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {getExamResults(exam.id!).length} 人参加
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </TabsContent>
-                    ))}
+                     {exams.map(exam => {
+                       const results = getExamResults(exam.id!);
+                       return (
+                         <TabsContent key={exam.id} value={exam.id!} className="mt-6">
+                           <div className="space-y-4">
+                             <div className="flex items-center justify-between">
+                               <div>
+                                 <h3 className="text-lg font-semibold">{exam.name}</h3>
+                                 <p className="text-sm text-muted-foreground">
+                                   创建时间: {exam.created_at ? new Date(exam.created_at).toLocaleString() : '未知'}
+                                 </p>
+                               </div>
+                               <div className="text-right">
+                                 <div className="text-lg font-semibold">
+                                   平均分: {getExamAverageScore(exam.id!)} 分
+                                 </div>
+                                 <div className="text-sm text-muted-foreground">
+                                   {results.length} 人参加
+                                 </div>
+                               </div>
+                             </div>
+                             
+                             {results.length > 0 && (
+                               <div className="mt-6">
+                                 <h4 className="text-md font-medium mb-4">学生成绩详情</h4>
+                                 <div className="overflow-x-auto">
+                                   <table className="w-full border-collapse">
+                                     <thead>
+                                       <tr className="border-b">
+                                         <th className="text-left py-2 px-4">姓名</th>
+                                         <th className="text-left py-2 px-4">班级</th>
+                                         <th className="text-center py-2 px-4">总分</th>
+                                         <th className="text-center py-2 px-4">正确率</th>
+                                         <th className="text-center py-2 px-4">各题得分</th>
+                                       </tr>
+                                     </thead>
+                                     <tbody>
+                                       {results.map(result => {
+                                         const student = students.find(s => s.id === result.student_id);
+                                         return (
+                                           <tr key={result.id} className="border-b hover:bg-muted/50">
+                                             <td className="py-2 px-4">{student?.name}</td>
+                                             <td className="py-2 px-4">{student?.class}</td>
+                                             <td className="text-center py-2 px-4">
+                                               <Badge variant="secondary">
+                                                 {result.total_score}/{exam.scores.reduce((sum, s) => sum + s, 0)}
+                                               </Badge>
+                                             </td>
+                                             <td className="text-center py-2 px-4">
+                                               {((result.correct_count / exam.total_questions) * 100).toFixed(1)}%
+                                             </td>
+                                             <td className="text-center py-2 px-4">
+                                               <div className="flex gap-1 justify-center flex-wrap">
+                                                 {Array.from({ length: exam.total_questions }, (_, i) => {
+                                                   const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === i);
+                                                   return (
+                                                     <Badge 
+                                                       key={i} 
+                                                       variant={answer?.isCorrect ? "default" : "destructive"}
+                                                       className="text-xs"
+                                                     >
+                                                       {i + 1}: {answer ? answer.score : 0}
+                                                     </Badge>
+                                                   );
+                                                 })}
+                                               </div>
+                                             </td>
+                                           </tr>
+                                         );
+                                       })}
+                                     </tbody>
+                                   </table>
+                                 </div>
+                               </div>
+                             )}
+                           </div>
+                         </TabsContent>
+                       );
+                     })}
                   </Tabs>
                 </CardContent>
               </Card>
