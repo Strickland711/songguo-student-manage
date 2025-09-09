@@ -313,14 +313,19 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     if (!currentExam || currentStudentIndex >= filteredStudents.length) return;
 
     const student = filteredStudents[currentStudentIndex];
-    const score = isCorrect ? currentExam.scores[currentQuestionIndex] : 0;
+    
+    // Ensure we have a valid score - never allow null/undefined/NaN
+    const questionScore = currentExam.scores[currentQuestionIndex];
+    const score = isCorrect ? (typeof questionScore === 'number' && !isNaN(questionScore) ? questionScore : 0) : 0;
     
     const answer: StudentAnswer = {
       studentId: student.id!,
       questionIndex: currentQuestionIndex,
-      isCorrect,
-      score,
+      isCorrect: isCorrect,
+      score: score,
     };
+
+    console.log('Recording answer:', answer);
 
     // 检查是否已经对当前学生的当前题目进行过评分，如果有则覆盖
     const existingAnswerIndex = currentAnswers.findIndex(
@@ -355,10 +360,33 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     if (!currentExam || !user) return;
 
     const studentAnswers = answers.filter(a => a.studentId === student.id);
-    const totalScore = studentAnswers.reduce((sum, a) => sum + a.score, 0);
-    const correctCount = studentAnswers.filter(a => a.isCorrect).length;
+    
+    // Ensure we have a valid total score - never allow null/undefined/NaN
+    let totalScore = 0;
+    let correctCount = 0;
+    
+    if (studentAnswers.length > 0) {
+      totalScore = studentAnswers.reduce((sum, a) => {
+        const score = typeof a.score === 'number' && !isNaN(a.score) ? a.score : 0;
+        return sum + score;
+      }, 0);
+      correctCount = studentAnswers.filter(a => a.isCorrect === true).length;
+    }
+    
+    // Ensure totalScore is never NaN or null
+    totalScore = typeof totalScore === 'number' && !isNaN(totalScore) ? totalScore : 0;
+    correctCount = typeof correctCount === 'number' && !isNaN(correctCount) ? correctCount : 0;
 
     try {
+      console.log('Saving exam result:', {
+        user_id: user.id,
+        exam_id: currentExam.id,
+        student_id: student.id,
+        total_score: totalScore,
+        correct_count: correctCount,
+        answers_count: studentAnswers.length
+      });
+
       const { error } = await supabase
         .from('exam_results')
         .upsert({
@@ -372,7 +400,10 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
           onConflict: 'exam_id,student_id' 
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       toast({
         title: "学生评分完成",
@@ -389,9 +420,10 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
         finishScoring();
       }
     } catch (error: any) {
+      console.error('Save error details:', error);
       toast({
         title: "保存失败",
-        description: error.message,
+        description: error.message || "未知错误",
         variant: "destructive",
       });
     }
@@ -948,6 +980,19 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                         </CardDescription>
                       </div>
                     </div>
+                    <Button
+                      onClick={() => {
+                        if (examDetailView && confirm('确定要删除这次考试的所有数据吗？此操作无法撤销。')) {
+                          deleteExam(examDetailView);
+                          setExamDetailView(null);
+                        }
+                      }}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      删除考试
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
