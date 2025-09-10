@@ -65,15 +65,12 @@ const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
       {...attributes}
       {...listeners}
       className={`
-        flex items-center justify-between p-3 bg-background border rounded-lg cursor-grab active:cursor-grabbing
-        hover:border-primary/50 transition-colors
+        flex items-center justify-center p-2 bg-background border rounded-md cursor-grab active:cursor-grabbing
+        hover:border-primary/50 transition-colors text-sm font-medium min-w-0
         ${isDragging ? 'opacity-50' : ''}
       `}
     >
-      <span className="font-medium">{student.name}</span>
-      <Badge variant="outline" className="text-xs">
-        拖拽移动
-      </Badge>
+      <span className="truncate">{student.name}</span>
     </div>
   );
 };
@@ -106,92 +103,96 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName }: Droppabl
   };
 
   return (
-    <Card 
+    <div 
       ref={setNodeRef}
-      className={`shadow-card transition-colors ${isOver ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
+      className={`${isOver ? 'ring-2 ring-primary/50 bg-primary/5 rounded-lg' : ''}`}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onToggleExpand(classData.name)}
-              className="p-1 h-6 w-6"
-            >
-              {classData.expanded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </Button>
-            
-            {isEditing ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="h-8 w-48"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveEdit();
-                    if (e.key === 'Escape') handleCancelEdit();
-                  }}
-                  autoFocus
-                />
-                <Button size="sm" variant="ghost" onClick={handleSaveEdit}>
-                  <Check className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-lg">{classData.name}</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                  className="p-1 h-6 w-6"
-                >
-                  <Edit2 className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              {classData.students.length}
-            </Badge>
-          </div>
-        </div>
-      </CardHeader>
-      
-      {classData.expanded && (
-        <CardContent className="pt-0">
-          <div className="space-y-2">
-            {classData.students.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-muted rounded-lg">
-                <Users className="h-8 w-8 mx-auto mb-2" />
-                <p className="text-sm">暂无学生</p>
-                <p className="text-xs">可从其他班级拖拽学生到此处</p>
-              </div>
-            ) : (
-              <SortableContext
-                items={classData.students.map(s => s.id!)}
-                strategy={verticalListSortingStrategy}
+      <Card className="shadow-card transition-colors">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onToggleExpand(classData.name)}
+                className="p-1 h-6 w-6"
               >
-                {classData.students.map(student => (
-                  <DraggableStudent key={student.id} student={student} />
-                ))}
-              </SortableContext>
-            )}
+                {classData.expanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </Button>
+              
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="h-8 w-48"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveEdit();
+                      if (e.key === 'Escape') handleCancelEdit();
+                    }}
+                    autoFocus
+                  />
+                  <Button size="sm" variant="ghost" onClick={handleSaveEdit}>
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg">{classData.name}</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditing(true)}
+                    className="p-1 h-6 w-6"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                {classData.students.length}
+              </Badge>
+            </div>
           </div>
-        </CardContent>
-      )}
-    </Card>
+        </CardHeader>
+        
+        {classData.expanded && (
+          <CardContent className="pt-0">
+            <div className="space-y-2">
+              {classData.students.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-muted rounded-lg">
+                  <Users className="h-8 w-8 mx-auto mb-2" />
+                  <p className="text-sm">暂无学生</p>
+                  <p className="text-xs">可从其他班级拖拽学生到此处</p>
+                </div>
+              ) : (
+                <SortableContext
+                  items={classData.students.map(s => s.id!)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {classData.students.map(student => (
+                      <DraggableStudent key={student.id} student={student} />
+                    ))}
+                  </div>
+                </SortableContext>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    </div>
   );
 };
 
@@ -278,6 +279,11 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
         variant: "destructive",
       });
     }
+  };
+
+  // 处理拖拽悬停
+  const handleDragOver = (event: DragOverEvent) => {
+    // 允许拖拽到班级区域上方
   };
 
   // 处理拖拽结束
@@ -405,6 +411,7 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
       >
         <div className="grid gap-4">
           {classDataList.map(classData => (
