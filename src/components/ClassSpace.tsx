@@ -8,25 +8,16 @@ import { useToast } from '@/hooks/use-toast';
 import { Student } from '@/hooks/useStudentData';
 import {
   DndContext,
-  closestCenter,
-  KeyboardSensor,
+  closestCorners,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
   useDroppable,
+  useDraggable,
   DragOverEvent,
+  DragOverlay,
 } from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 interface ClassData {
   name: string;
@@ -50,13 +41,11 @@ const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
     listeners,
     setNodeRef,
     transform,
-    transition,
-  } = useSortable({ id: student.id! });
+  } = useDraggable({ id: student.id! });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  } : {};
 
   return (
     <div
@@ -177,16 +166,11 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName }: Droppabl
                   <p className="text-xs">可从其他班级拖拽学生到此处</p>
                 </div>
               ) : (
-                <SortableContext
-                  items={classData.students.map(s => s.id!)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                    {classData.students.map(student => (
-                      <DraggableStudent key={student.id} student={student} />
-                    ))}
-                  </div>
-                </SortableContext>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {classData.students.map(student => (
+                    <DraggableStudent key={student.id} student={student} />
+                  ))}
+                </div>
               )}
             </div>
           </CardContent>
@@ -250,11 +234,10 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
     }
   }, [students, classDataList]);
 
+  const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
+
   const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor)
   );
 
   // 更新本地状态和数据库
@@ -281,6 +264,11 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
     }
   };
 
+  // 处理拖拽开始
+  const handleDragStart = (event: any) => {
+    setDraggedStudentId(event.active.id);
+  };
+
   // 处理拖拽悬停
   const handleDragOver = (event: DragOverEvent) => {
     // 允许拖拽到班级区域上方
@@ -289,6 +277,8 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
   // 处理拖拽结束
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    
+    setDraggedStudentId(null); // 重置拖拽状态
     
     if (!over) return;
     
@@ -409,7 +399,8 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
       >
@@ -425,6 +416,16 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
           ))}
         </div>
       </DndContext>
+
+      <DragOverlay>
+        {draggedStudentId ? (
+          <div className="flex items-center justify-center p-2 bg-primary text-primary-foreground border rounded-md text-sm font-medium opacity-90">
+            {classDataList
+              .flatMap(c => c.students)
+              .find(s => s.id === draggedStudentId)?.name || '拖拽中...'}
+          </div>
+        ) : null}
+      </DragOverlay>
 
       <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
         <h4 className="font-medium mb-2">使用说明：</h4>
