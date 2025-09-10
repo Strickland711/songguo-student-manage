@@ -10,92 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
+import ClassSpace from './ClassSpace';
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
-
-const BatchClassUpdate = ({ students, onUpdateStudents }: { 
-  students: Student[], 
-  onUpdateStudents: (students: Student[]) => Promise<void> 
-}) => {
-  const [oldClassName, setOldClassName] = useState('');
-  const [newClassName, setNewClassName] = useState('');
-  const { toast } = useToast();
-
-  const classNames = Array.from(new Set(students.map(s => s.class).filter(Boolean))).sort();
-
-  const handleBatchUpdate = async () => {
-    if (!oldClassName || !newClassName) {
-      toast({
-        title: "输入不完整",
-        description: "请选择要修改的班级和输入新班级名称",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const updatedStudents = students.map(student => 
-        student.class === oldClassName 
-          ? { ...student, class: newClassName }
-          : student
-      );
-      
-      await onUpdateStudents(updatedStudents);
-      setOldClassName('');
-      setNewClassName('');
-      
-      toast({
-        title: "批量修改成功",
-        description: `已将班级"${oldClassName}"的学生修改为"${newClassName}"`,
-      });
-    } catch (error) {
-      toast({
-        title: "批量修改失败",
-        description: "请稍后重试",
-        variant: "destructive",
-      });
-    }
-  };
-
-  if (classNames.length === 0) return null;
-
-  return (
-    <div className="p-4 border rounded-lg bg-muted/30">
-      <h4 className="font-medium mb-3">批量修改班级名称</h4>
-      <div className="flex gap-3 items-end">
-        <div className="flex-1">
-          <Label htmlFor="old-class">选择要修改的班级</Label>
-          <Select value={oldClassName} onValueChange={setOldClassName}>
-            <SelectTrigger>
-              <SelectValue placeholder="选择班级" />
-            </SelectTrigger>
-            <SelectContent>
-              {classNames.map(className => (
-                <SelectItem key={className} value={className}>
-                  {className} ({students.filter(s => s.class === className).length}人)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-1">
-          <Label htmlFor="new-class">新班级名称</Label>
-          <Input
-            id="new-class"
-            value={newClassName}
-            onChange={(e) => setNewClassName(e.target.value)}
-            placeholder="输入新班级名称"
-          />
-        </div>
-        <Button 
-          onClick={handleBatchUpdate}
-          disabled={!oldClassName || !newClassName}
-        >
-          批量修改
-        </Button>
-      </div>
-    </div>
-  );
-};
 
 interface ColumnMapping {
   column: string;
@@ -477,9 +393,10 @@ const StudentDashboard = () => {
         </div>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-fit">
+          <TabsList className="grid grid-cols-4 w-fit">
             <TabsTrigger value="dashboard">数据导入</TabsTrigger>
             <TabsTrigger value="students">学生管理</TabsTrigger>
+            <TabsTrigger value="classes">班级空间</TabsTrigger>
             <TabsTrigger value="settings">字段设置</TabsTrigger>
           </TabsList>
 
@@ -713,11 +630,6 @@ const StudentDashboard = () => {
                     </div>
                   </div>
 
-                  {/* 批量班级修改区域 */}
-                  <BatchClassUpdate
-                    students={students}
-                    onUpdateStudents={saveStudents}
-                  />
 
                  <div className="flex flex-wrap gap-2">
                    <Label className="text-sm font-medium">显示字段:</Label>
@@ -798,6 +710,13 @@ const StudentDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="classes" className="space-y-6">
+            <ClassSpace 
+              students={students} 
+              onUpdateStudents={saveStudents}
+            />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
