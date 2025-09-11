@@ -154,7 +154,7 @@ export const useStudentData = () => {
         }))
       ];
 
-      // 批量处理自定义标签值
+      // 批量处理自定义字段值
       await batchUpdateStudentFieldValues(allSavedStudents);
 
       setStudents(allSavedStudents);
@@ -173,7 +173,7 @@ export const useStudentData = () => {
     }
   };
 
-  // 批量更新学生自定义标签值（性能优化）
+  // 批量更新学生自定义字段值（性能优化）
   const batchUpdateStudentFieldValues = async (students: Student[]) => {
     if (!user || customFields.length === 0) return;
 
