@@ -418,7 +418,7 @@ const StudentDashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-primary">学生管理系统</h1>
-            <p className="text-muted-foreground mt-2">高效管理学生信息，支持Excel导入和自定义字段</p>
+            <p className="text-muted-foreground mt-2">高效管理学生信息，支持Excel导入和自定义标签</p>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="secondary" className="px-3 py-1">
@@ -445,7 +445,7 @@ const StudentDashboard = () => {
             <TabsTrigger value="dashboard">数据导入</TabsTrigger>
             <TabsTrigger value="students">学生管理</TabsTrigger>
             <TabsTrigger value="classes">班级空间</TabsTrigger>
-            <TabsTrigger value="settings">字段设置</TabsTrigger>
+            <TabsTrigger value="settings">标签设置</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -458,7 +458,7 @@ const StudentDashboard = () => {
                     Excel文件上传
                   </CardTitle>
                   <CardDescription>
-                    上传包含学生信息的Excel文件，然后配置列与字段的对应关系
+                    上传包含学生信息的Excel文件，然后配置列与标签的对应关系
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -472,7 +472,7 @@ const StudentDashboard = () => {
                         点击上传Excel文件
                       </span>
                       <p className="text-sm text-muted-foreground">
-                        支持.xlsx和.xls格式，上传后可自定义列与字段的映射关系
+                        支持.xlsx和.xls格式，上传后可自定义列与标签的映射关系
                       </p>
                     </div>
                     <Input

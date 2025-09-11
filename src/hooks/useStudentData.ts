@@ -154,7 +154,7 @@ export const useStudentData = () => {
         }))
       ];
 
-      // 批量处理自定义字段值
+      // 批量处理自定义标签值
       await batchUpdateStudentFieldValues(allSavedStudents);
 
       setStudents(allSavedStudents);
@@ -173,7 +173,7 @@ export const useStudentData = () => {
     }
   };
 
-  // 批量更新学生自定义字段值（性能优化）
+  // 批量更新学生自定义标签值（性能优化）
   const batchUpdateStudentFieldValues = async (students: Student[]) => {
     if (!user || customFields.length === 0) return;
 
@@ -197,7 +197,7 @@ export const useStudentData = () => {
         .upsert(valuesToUpsert, { onConflict: 'student_id,field_id' });
 
       if (error) {
-        console.error('批量保存自定义字段值失败:', error);
+        console.error('批量保存自定义标签值失败:', error);
         throw error;
       }
     }
@@ -320,7 +320,7 @@ export const useStudentData = () => {
       setCustomFields(allSavedFields);
     } catch (error: any) {
       toast({
-        title: "保存字段失败",
+        title: "保存标签失败",
         description: error.message,
         variant: "destructive",
       });
@@ -379,12 +379,12 @@ export const useStudentData = () => {
       }
 
       toast({
-        title: "字段删除成功",
-        description: "自定义字段已删除",
+        title: "标签删除成功",
+        description: "自定义标签已删除",
       });
     } catch (error: any) {
       toast({
-        title: "删除字段失败",
+        title: "删除标签失败",
         description: error.message,
         variant: "destructive",
       });
