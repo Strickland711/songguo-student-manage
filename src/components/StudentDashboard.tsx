@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen } from 'lucide-react';
+import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
 import ClassSpace from './ClassSpace';
@@ -61,6 +62,10 @@ const StudentDashboard = () => {
   
   // 登分系统状态
   const [showScoringSystem, setShowScoringSystem] = useState(false);
+  
+  // 手动添加学生状态
+  const [showAddStudentDialog, setShowAddStudentDialog] = useState(false);
+  const [newStudent, setNewStudent] = useState<Partial<Student>>({ name: '', class: '' });
   
   const { toast } = useToast();
 
@@ -348,6 +353,47 @@ const StudentDashboard = () => {
     });
   };
 
+  // 手动添加学生
+  const addStudentManually = async () => {
+    if (!newStudent.name?.trim()) {
+      toast({
+        title: "姓名不能为空",
+        description: "请输入学生姓名",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const studentToAdd: Student = {
+        name: newStudent.name.trim(),
+        class: newStudent.class?.trim() || '',
+        ...customFields.reduce((acc, field) => {
+          acc[field.name] = newStudent[field.name] || '';
+          return acc;
+        }, {} as any)
+      };
+
+      const updatedStudents = [...students, studentToAdd];
+      await saveStudents(updatedStudents);
+      
+      // 重置表单并关闭对话框
+      setNewStudent({ name: '', class: '' });
+      setShowAddStudentDialog(false);
+      
+      toast({
+        title: "添加成功",
+        description: `学生 ${studentToAdd.name} 已添加`,
+      });
+    } catch (error) {
+      toast({
+        title: "添加失败",
+        description: "添加学生失败，请重试",
+        variant: "destructive",
+      });
+    }
+  };
+
   // 如果显示登分系统，渲染登分系统组件
   if (showScoringSystem) {
     return <ScoringSystem students={students} onClose={() => setShowScoringSystem(false)} />;
@@ -601,8 +647,77 @@ const StudentDashboard = () => {
             {/* Students Filter and Display Controls */}
               <Card className="shadow-card">
                 <CardHeader>
-                  <CardTitle>学生列表</CardTitle>
-                  <CardDescription>管理所有学生信息</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>学生列表</CardTitle>
+                      <CardDescription>管理所有学生信息</CardDescription>
+                    </div>
+                    <Dialog open={showAddStudentDialog} onOpenChange={setShowAddStudentDialog}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          添加学生
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>添加新学生</DialogTitle>
+                          <DialogDescription>
+                            请填写学生的基本信息和自定义字段
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="student-name" className="text-right">
+                              姓名 *
+                            </Label>
+                            <Input
+                              id="student-name"
+                              value={newStudent.name || ''}
+                              onChange={(e) => setNewStudent(prev => ({ ...prev, name: e.target.value }))}
+                              className="col-span-3"
+                              placeholder="请输入学生姓名"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="student-class" className="text-right">
+                              班级
+                            </Label>
+                            <Input
+                              id="student-class"
+                              value={newStudent.class || ''}
+                              onChange={(e) => setNewStudent(prev => ({ ...prev, class: e.target.value }))}
+                              className="col-span-3"
+                              placeholder="请输入班级名称"
+                            />
+                          </div>
+                          {customFields.map(field => (
+                            <div key={field.id} className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor={`field-${field.id}`} className="text-right">
+                                {field.name}
+                              </Label>
+                              <Input
+                                id={`field-${field.id}`}
+                                type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+                                value={newStudent[field.name] || ''}
+                                onChange={(e) => setNewStudent(prev => ({ ...prev, [field.name]: e.target.value }))}
+                                className="col-span-3"
+                                placeholder={`请输入${field.name}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowAddStudentDialog(false)}>
+                            取消
+                          </Button>
+                          <Button onClick={addStudentManually}>
+                            添加学生
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap gap-4">
@@ -653,12 +768,12 @@ const StudentDashboard = () => {
                    ))}
                  </div>
 
-                {students.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-muted-foreground">暂无学生信息</h3>
-                    <p className="text-sm text-muted-foreground mt-2">请先上传Excel文件导入学生数据</p>
-                  </div>
+                 {students.length === 0 ? (
+                   <div className="text-center py-12">
+                     <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                     <h3 className="text-lg font-medium text-muted-foreground">暂无学生信息</h3>
+                     <p className="text-sm text-muted-foreground mt-2">请上传Excel文件导入学生数据，或点击上方"添加学生"按钮手动添加</p>
+                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
