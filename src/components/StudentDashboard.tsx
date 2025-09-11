@@ -302,8 +302,8 @@ const StudentDashboard = () => {
       setNewFieldName('');
       setNewFieldType('text');
       toast({
-        title: "字段添加成功",
-        description: `已添加自定义字段: ${newFieldName}`,
+        title: "标签添加成功",
+        description: `已添加自定义标签: ${newFieldName}`,
       });
     } catch (error) {
       // Error is already handled in saveCustomFields
@@ -503,7 +503,7 @@ const StudentDashboard = () => {
                     配置列映射
                   </CardTitle>
                    <CardDescription>
-                     必须映射姓名和班级字段，其他字段可选择映射或作为自定义字段
+                     必须映射姓名和班级标签，其他标签可选择映射或作为自定义标签
                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -515,7 +515,7 @@ const StudentDashboard = () => {
                   </div>
 
                   <div className="space-y-4">
-                    <h4 className="font-medium">字段映射</h4>
+                    <h4 className="font-medium">标签映射</h4>
                     {excelData.columns.map(column => {
                       const currentMapping = columnMappings.find(m => m.column === column);
                       const isCustomField = selectedAsCustomFields.includes(column);
@@ -539,13 +539,13 @@ const StudentDashboard = () => {
                               }
                               onValueChange={(value) => {
                                 if (value.startsWith('new_field_')) {
-                                  // 选择了新建自定义字段
+                                  // 选择了新建自定义标签
                                   updateColumnMapping(column, 'none');
                                   if (!selectedAsCustomFields.includes(column)) {
                                     toggleCustomField(column);
                                   }
                                 } else {
-                                  // 选择了其他字段映射
+                                  // 选择了其他标签映射
                                   updateColumnMapping(column, value);
                                   if (selectedAsCustomFields.includes(column)) {
                                     toggleCustomField(column);
@@ -554,7 +554,7 @@ const StudentDashboard = () => {
                               }}
                             >
                               <SelectTrigger className="w-full">
-                                <SelectValue placeholder="选择字段" />
+                                <SelectValue placeholder="选择标签" />
                               </SelectTrigger>
                               <SelectContent>
                                  <SelectItem value="none">不映射</SelectItem>
@@ -562,11 +562,11 @@ const StudentDashboard = () => {
                                  <SelectItem value="class">班级 (必填)</SelectItem>
                                  {customFields.map(field => (
                                    <SelectItem key={field.id} value={field.name}>
-                                     {field.name} (现有自定义字段)
+                                     {field.name} (现有自定义标签)
                                    </SelectItem>
                                  ))}
                                  <SelectItem value={`new_field_${column}`}>
-                                   作为新建自定义字段
+                                   作为新建自定义标签
                                  </SelectItem>
                               </SelectContent>
                             </Select>
@@ -578,7 +578,7 @@ const StudentDashboard = () => {
 
                   {selectedAsCustomFields.length > 0 && (
                     <div className="bg-accent/10 p-4 rounded-lg">
-                      <h5 className="font-medium text-sm mb-2">将创建的自定义字段：</h5>
+                      <h5 className="font-medium text-sm mb-2">将创建的自定义标签：</h5>
                       <div className="flex flex-wrap gap-2">
                         {selectedAsCustomFields.map(field => (
                           <Badge key={field} variant="secondary">{field}</Badge>
@@ -619,7 +619,7 @@ const StudentDashboard = () => {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">自定义字段</p>
+                      <p className="text-sm font-medium text-muted-foreground">自定义标签</p>
                       <p className="text-2xl font-bold text-primary">{customFields.length}</p>
                     </div>
                     <Settings className="w-8 h-8 text-accent" />
@@ -663,7 +663,7 @@ const StudentDashboard = () => {
                         <DialogHeader>
                           <DialogTitle>添加新学生</DialogTitle>
                           <DialogDescription>
-                            请填写学生的基本信息和自定义字段
+                            请填写学生的基本信息和自定义标签
                           </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
@@ -731,7 +731,7 @@ const StudentDashboard = () => {
                       />
                     </div>
                     <div className="w-32">
-                      <Label htmlFor="filter-field">筛选字段</Label>
+                      <Label htmlFor="filter-field">筛选标签</Label>
                       <Select value={filterField} onValueChange={setFilterField}>
                         <SelectTrigger>
                           <SelectValue />
@@ -749,7 +749,7 @@ const StudentDashboard = () => {
 
 
                  <div className="flex flex-wrap gap-2">
-                   <Label className="text-sm font-medium">显示字段:</Label>
+                   <Label className="text-sm font-medium">显示标签:</Label>
                    {customFields.map(field => (
                      <label key={field.id} className="flex items-center gap-1 text-sm">
                        <input
@@ -842,22 +842,22 @@ const StudentDashboard = () => {
             {/* Custom Fields Management */}
             <Card className="shadow-card">
               <CardHeader>
-                <CardTitle>自定义字段管理</CardTitle>
-                <CardDescription>添加或删除学生信息的自定义字段</CardDescription>
+                <CardTitle>自定义标签管理</CardTitle>
+                <CardDescription>添加或删除学生信息的自定义标签</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <Label htmlFor="field-name">字段名称</Label>
+                    <Label htmlFor="field-name">标签名称</Label>
                     <Input
                       id="field-name"
                       value={newFieldName}
                       onChange={(e) => setNewFieldName(e.target.value)}
-                      placeholder="输入字段名称"
+                      placeholder="输入标签名称"
                     />
                   </div>
                   <div className="w-32">
-                    <Label htmlFor="field-type">字段类型</Label>
+                    <Label htmlFor="field-type">标签类型</Label>
                     <select
                       id="field-type"
                       value={newFieldType}
@@ -873,14 +873,14 @@ const StudentDashboard = () => {
                   <div className="flex items-end">
                     <Button onClick={addCustomField} disabled={!newFieldName.trim()}>
                       <Plus className="w-4 h-4 mr-2" />
-                      添加字段
+                      添加标签
                     </Button>
                   </div>
                 </div>
 
                 {customFields.length > 0 && (
                   <div className="space-y-2">
-                    <h4 className="font-medium">已添加的字段</h4>
+                    <h4 className="font-medium">已添加的标签</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {customFields.map(field => (
                         <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
