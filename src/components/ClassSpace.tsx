@@ -28,6 +28,8 @@ interface ClassData {
 interface ClassSpaceProps {
   students: Student[];
   onUpdateStudents: (students: Student[]) => Promise<void>;
+  onUpdateStudentClass: (studentId: string, newClass: string) => Promise<boolean>;
+  onUpdateClassName: (oldName: string, newName: string) => Promise<boolean>;
 }
 
 interface DraggableStudentProps {
@@ -180,7 +182,7 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName }: Droppabl
   );
 };
 
-const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
+const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdateClassName }: ClassSpaceProps) => {
   const { toast } = useToast();
   
   // 按班级分组学生数据
@@ -204,7 +206,7 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
 
   const [classDataList, setClassDataList] = useState<ClassData[]>(initialClassData);
 
-  // 同步外部学生数据变化
+  // 同步外部学生数据变化（优化版本）
   useEffect(() => {
     const classMap = new Map<string, Student[]>();
     
@@ -225,14 +227,25 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
       };
     });
     
-    // 只有在数据真正发生变化时才更新
-    const hasChanged = JSON.stringify(newClassDataList.map(c => ({ name: c.name, studentIds: c.students.map(s => s.id) }))) 
-      !== JSON.stringify(classDataList.map(c => ({ name: c.name, studentIds: c.students.map(s => s.id) })));
+    // 更精确的变化检测（避免不必要的重新渲染）
+    const currentSnapshot = classDataList.map(c => ({ 
+      name: c.name, 
+      studentIds: c.students.map(s => s.id).sort(),
+      expanded: c.expanded
+    }));
+    
+    const newSnapshot = newClassDataList.map(c => ({ 
+      name: c.name, 
+      studentIds: c.students.map(s => s.id).sort(),
+      expanded: c.expanded
+    }));
+    
+    const hasChanged = JSON.stringify(currentSnapshot) !== JSON.stringify(newSnapshot);
       
     if (hasChanged) {
       setClassDataList(newClassDataList);
     }
-  }, [students, classDataList]);
+  }, [students]); // 移除 classDataList 依赖以避免循环
 
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
 
@@ -240,27 +253,24 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
     useSensor(PointerSensor)
   );
 
-  // 更新本地状态和数据库
-  const updateStudentsData = async (newClassDataList: ClassData[]) => {
-    const allStudents: Student[] = [];
-    newClassDataList.forEach(classData => {
-      classData.students.forEach(student => {
-        allStudents.push({
-          ...student,
-          class: classData.name === '未分班' ? '' : classData.name
-        });
-      });
-    });
-    
+  // 优化：仅更新单个学生班级（用于拖拽）
+  const updateSingleStudentClass = async (studentId: string, newClassName: string) => {
     try {
-      await onUpdateStudents(allStudents);
-      setClassDataList(newClassDataList);
+      const actualClassName = newClassName === '未分班' ? '' : newClassName;
+      await onUpdateStudentClass(studentId, actualClassName);
+      
+      toast({
+        title: "移动成功",
+        description: `学生已移动到 ${newClassName}`,
+      });
     } catch (error) {
       toast({
-        title: "更新失败",
-        description: "学生班级更新失败，请重试",
+        title: "移动失败",
+        description: "学生移动失败，请重试",
         variant: "destructive",
       });
+      // 重新加载数据以恢复状态
+      throw error;
     }
   };
 
@@ -274,7 +284,7 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
     // 允许拖拽到班级区域上方
   };
 
-  // 处理拖拽结束
+  // 处理拖拽结束（优化版本）
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     
@@ -285,49 +295,45 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
     const draggedStudentId = active.id as string;
     const targetClassName = over.id as string;
     
-    // 找到被拖拽的学生和目标班级
+    // 找到被拖拽的学生和源班级
     let draggedStudent: Student | null = null;
-    let sourceClassIndex = -1;
+    let sourceClassName = '';
     
-    const currentClassList = [...classDataList];
-    
-    currentClassList.forEach((classData, classIndex) => {
-      const studentIndex = classData.students.findIndex(s => s.id === draggedStudentId);
-      if (studentIndex !== -1) {
-        draggedStudent = classData.students[studentIndex];
-        sourceClassIndex = classIndex;
+    classDataList.forEach(classData => {
+      const student = classData.students.find(s => s.id === draggedStudentId);
+      if (student) {
+        draggedStudent = student;
+        sourceClassName = classData.name;
       }
     });
     
-    if (!draggedStudent || sourceClassIndex === -1) return;
+    if (!draggedStudent || sourceClassName === targetClassName) return;
     
-    const targetClassIndex = currentClassList.findIndex(c => c.name === targetClassName);
-    if (targetClassIndex === -1) return;
-    
-    // 如果拖拽到同一个班级，不做处理
-    if (currentClassList[sourceClassIndex].name === targetClassName) return;
-    
-    // 创建新的班级数据列表
-    const newClassDataList = [...currentClassList];
-    
-    // 从源班级移除学生
-    newClassDataList[sourceClassIndex] = {
-      ...newClassDataList[sourceClassIndex],
-      students: newClassDataList[sourceClassIndex].students.filter(s => s.id !== draggedStudentId)
-    };
-    
-    // 添加学生到目标班级
-    newClassDataList[targetClassIndex] = {
-      ...newClassDataList[targetClassIndex],
-      students: [...newClassDataList[targetClassIndex].students, draggedStudent]
-    };
-    
-    await updateStudentsData(newClassDataList);
-    
-    toast({
-      title: "移动成功",
-      description: `已将 ${draggedStudent.name} 从 ${currentClassList[sourceClassIndex].name} 移动到 ${targetClassName}`,
+    // 乐观更新：先更新本地状态
+    const newClassDataList = classDataList.map(classData => {
+      if (classData.name === sourceClassName) {
+        return {
+          ...classData,
+          students: classData.students.filter(s => s.id !== draggedStudentId)
+        };
+      } else if (classData.name === targetClassName) {
+        return {
+          ...classData,
+          students: [...classData.students, draggedStudent]
+        };
+      }
+      return classData;
     });
+    
+    setClassDataList(newClassDataList);
+    
+    // 异步更新数据库
+    try {
+      await updateSingleStudentClass(draggedStudentId, targetClassName);
+    } catch (error) {
+      // 如果失败，恢复原始状态
+      setClassDataList(classDataList);
+    }
   };
 
   // 切换班级展开/收起
@@ -341,7 +347,7 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
     );
   };
 
-  // 编辑班级名称
+  // 编辑班级名称（优化版本）
   const editClassName = async (oldName: string, newName: string) => {
     if (classDataList.some(c => c.name === newName && c.name !== oldName)) {
       toast({
@@ -352,18 +358,27 @@ const ClassSpace = ({ students, onUpdateStudents }: ClassSpaceProps) => {
       return;
     }
 
+    // 乐观更新：先更新本地状态
     const newClassDataList = classDataList.map(classData => 
       classData.name === oldName 
         ? { ...classData, name: newName }
         : classData
     );
     
-    await updateStudentsData(newClassDataList);
+    setClassDataList(newClassDataList);
     
-    toast({
-      title: "班级名称已更新",
-      description: `已将班级 "${oldName}" 改名为 "${newName}"`,
-    });
+    try {
+      // 异步批量更新数据库中该班级的所有学生
+      await onUpdateClassName(oldName === '未分班' ? '' : oldName, newName === '未分班' ? '' : newName);
+      
+      toast({
+        title: "班级名称已更新",
+        description: `已将班级 "${oldName}" 改名为 "${newName}"`,
+      });
+    } catch (error) {
+      // 如果失败，恢复原始状态
+      setClassDataList(classDataList);
+    }
   };
 
   if (students.length === 0) {

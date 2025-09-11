@@ -35,7 +35,9 @@ const StudentDashboard = () => {
     deleteStudent: deleteStudentFromDB,
     deleteCustomField: deleteCustomFieldFromDB,
     saveScoringRecord,
-    loadData
+    loadData,
+    updateStudentClass,
+    updateClassNameForAllStudents
   } = useStudentData();
   const [uploading, setUploading] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -716,6 +718,8 @@ const StudentDashboard = () => {
             <ClassSpace 
               students={students} 
               onUpdateStudents={saveStudents}
+              onUpdateStudentClass={updateStudentClass}
+              onUpdateClassName={updateClassNameForAllStudents}
             />
           </TabsContent>
 

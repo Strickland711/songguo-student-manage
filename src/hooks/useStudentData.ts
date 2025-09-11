@@ -154,33 +154,8 @@ export const useStudentData = () => {
         }))
       ];
 
-      // 重新获取最新的自定义字段数据（包含正确的ID）
-      const { data: latestFields } = await supabase
-        .from('custom_fields')
-        .select('*')
-        .eq('user_id', user.id);
-
-      const fieldsToUse = latestFields || customFields;
-
-      // Handle custom field values
-      for (const student of allSavedStudents) {
-        for (const field of fieldsToUse) {
-          if (student[field.name] !== undefined && student[field.name] !== '') {
-            const { error: valueError } = await supabase
-              .from('student_field_values')
-              .upsert({
-                student_id: student.id,
-                field_id: field.id,
-                value: student[field.name]
-              }, { onConflict: 'student_id,field_id' });
-
-            if (valueError) {
-              console.error('保存自定义字段值失败:', valueError);
-              throw valueError;
-            }
-          }
-        }
-      }
+      // 批量处理自定义字段值
+      await batchUpdateStudentFieldValues(allSavedStudents);
 
       setStudents(allSavedStudents);
       
@@ -191,6 +166,98 @@ export const useStudentData = () => {
     } catch (error: any) {
       toast({
         title: "保存失败",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // 批量更新学生自定义字段值（性能优化）
+  const batchUpdateStudentFieldValues = async (students: Student[]) => {
+    if (!user || customFields.length === 0) return;
+
+    const valuesToUpsert = [];
+    
+    for (const student of students) {
+      for (const field of customFields) {
+        if (student[field.name] !== undefined && student[field.name] !== '') {
+          valuesToUpsert.push({
+            student_id: student.id,
+            field_id: field.id,
+            value: student[field.name]
+          });
+        }
+      }
+    }
+
+    if (valuesToUpsert.length > 0) {
+      const { error } = await supabase
+        .from('student_field_values')
+        .upsert(valuesToUpsert, { onConflict: 'student_id,field_id' });
+
+      if (error) {
+        console.error('批量保存自定义字段值失败:', error);
+        throw error;
+      }
+    }
+  };
+
+  // 优化：仅更新单个学生的班级（用于拖拽操作）
+  const updateStudentClass = async (studentId: string, newClass: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ class: newClass })
+        .eq('id', studentId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // 乐观更新本地状态
+      setStudents(prev => prev.map(student => 
+        student.id === studentId 
+          ? { ...student, class: newClass }
+          : student
+      ));
+
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "更新失败",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // 优化：批量更新班级名称（用于班级改名操作）
+  const updateClassNameForAllStudents = async (oldClassName: string, newClassName: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ class: newClassName })
+        .eq('class', oldClassName)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // 乐观更新本地状态
+      setStudents(prev => prev.map(student => 
+        student.class === oldClassName 
+          ? { ...student, class: newClassName }
+          : student
+      ));
+
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "更新班级名称失败",
         description: error.message,
         variant: "destructive",
       });
@@ -370,6 +437,9 @@ export const useStudentData = () => {
     deleteStudent,
     deleteCustomField,
     saveScoringRecord,
-    loadData
+    loadData,
+    updateStudentClass,
+    updateClassNameForAllStudents,
+    batchUpdateStudentFieldValues
   };
 };
