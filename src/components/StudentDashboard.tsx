@@ -95,20 +95,20 @@ const StudentDashboard = () => {
       const unmappedColumns: string[] = [];
       
       columns.forEach(column => {
-        // 尝试智能匹配必填字段
+        // 尝试智能匹配必填标签
         const lowerColumn = column.toLowerCase();
         if (lowerColumn.includes('姓名') || lowerColumn.includes('name')) {
           initialMappings.push({ column, field: 'name' });
         } else if (lowerColumn.includes('班级') || lowerColumn.includes('class')) {
           initialMappings.push({ column, field: 'class' });
         } else {
-          // 其他列默认作为自定义字段候选
+          // 其他列默认作为自定义标签候选
           unmappedColumns.push(column);
         }
       });
       
       setColumnMappings(initialMappings);
-      setSelectedAsCustomFields(unmappedColumns); // 默认将未映射的列作为自定义字段
+      setSelectedAsCustomFields(unmappedColumns); // 默认将未映射的列作为自定义标签
 
       toast({
         title: "文件解析成功",
@@ -148,20 +148,20 @@ const StudentDashboard = () => {
     if (!excelData) return;
 
     try {
-      // 创建新的自定义字段（不传id，让数据库自动生成UUID）
+      // 创建新的自定义标签（不传id，让数据库自动生成UUID）
       const newCustomFields = selectedAsCustomFields.map(column => ({
         name: column,
         type: 'text' as const,
       }));
 
-      // 更新自定义字段并保存到数据库，等待完成
+      // 更新自定义标签并保存到数据库，等待完成
       let updatedFields = [...customFields];
       if (newCustomFields.length > 0) {
         updatedFields = [...customFields, ...newCustomFields];
         await saveCustomFields(updatedFields);
-        // 重新加载数据以获取正确的字段ID
+        // 重新加载数据以获取正确的标签ID
         await loadData();
-        // 使用更新后的字段列表
+        // 使用更新后的标签列表
         updatedFields = customFields;
       }
 
@@ -177,12 +177,12 @@ const StudentDashboard = () => {
           if (mapping.field === 'name' || mapping.field === 'class') {
             student[mapping.field] = String(row[mapping.column] || '').trim();
           } else {
-            // 映射到现有自定义字段
+            // 映射到现有自定义标签
             student[mapping.field] = String(row[mapping.column] || '').trim();
           }
         });
 
-        // 添加自定义字段数据
+        // 添加自定义标签数据
         selectedAsCustomFields.forEach(column => {
           student[column] = String(row[column] || '').trim();
         });
