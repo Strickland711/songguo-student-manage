@@ -23,7 +23,8 @@ import {
   BarChart3,
   Filter,
   Keyboard,
-  Undo
+  Undo,
+  ArrowRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Student } from '@/hooks/useStudentData';
@@ -214,6 +215,9 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
         handleAnswer(true);
       } else if (key === keyBindings.incorrect.toLowerCase()) {
         handleAnswer(false);
+      } else if (key === 'q') {
+        // Q键切换学生
+        switchToNextStudent();
       }
     };
 
@@ -616,6 +620,85 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     }
   };
 
+  // 切换到下一个学生
+  const switchToNextStudent = () => {
+    if (!isScoring || !currentExam) return;
+    
+    const nextIndex = (currentStudentIndex + 1) % filteredStudents.length;
+    setCurrentStudentIndex(nextIndex);
+    setCurrentQuestionIndex(0);
+    setSelectedStudentId(null);
+    
+    const nextStudent = filteredStudents[nextIndex];
+    // 加载该学生已有的答案数据（如果有的话）
+    const existingResult = getStudentExamResult(nextStudent.id!);
+    if (existingResult && existingResult.answers) {
+      const studentAnswers = existingResult.answers as unknown as StudentAnswer[];
+      // 将该学生的答案添加到当前答案中，但保留其他学生的答案
+      const otherStudentsAnswers = currentAnswers.filter(a => a.studentId !== nextStudent.id);
+      setCurrentAnswers([...otherStudentsAnswers, ...studentAnswers]);
+    }
+    
+    toast({
+      title: "切换学生",
+      description: `已切换到：${nextStudent.name}`,
+    });
+  };
+
+  // 全对功能
+  const handleAllCorrect = async () => {
+    if (!currentStudent || !currentExam || !user) return;
+    
+    if (!confirm(`确定要将 ${currentStudent.name} 的所有题目标记为正确吗？`)) {
+      return;
+    }
+    
+    const allCorrectAnswers: StudentAnswer[] = [];
+    for (let i = 0; i < currentExam.total_questions; i++) {
+      allCorrectAnswers.push({
+        studentId: currentStudent.id!,
+        questionIndex: i,
+        isCorrect: true,
+        score: currentExam.scores[i] || 0,
+      });
+    }
+    
+    // 更新当前答案
+    const otherStudentsAnswers = currentAnswers.filter(a => a.studentId !== currentStudent.id);
+    const newAnswers = [...otherStudentsAnswers, ...allCorrectAnswers];
+    setCurrentAnswers(newAnswers);
+    
+    // 立即保存结果
+    await finishStudentScoring(currentStudent, newAnswers);
+  };
+
+  // 全错功能
+  const handleAllIncorrect = async () => {
+    if (!currentStudent || !currentExam || !user) return;
+    
+    if (!confirm(`确定要将 ${currentStudent.name} 的所有题目标记为错误吗？`)) {
+      return;
+    }
+    
+    const allIncorrectAnswers: StudentAnswer[] = [];
+    for (let i = 0; i < currentExam.total_questions; i++) {
+      allIncorrectAnswers.push({
+        studentId: currentStudent.id!,
+        questionIndex: i,
+        isCorrect: false,
+        score: 0,
+      });
+    }
+    
+    // 更新当前答案
+    const otherStudentsAnswers = currentAnswers.filter(a => a.studentId !== currentStudent.id);
+    const newAnswers = [...otherStudentsAnswers, ...allIncorrectAnswers];
+    setCurrentAnswers(newAnswers);
+    
+    // 立即保存结果
+    await finishStudentScoring(currentStudent, newAnswers);
+  };
+
   const currentStudent = isScoring && filteredStudents[currentStudentIndex];
 
   return (
@@ -812,12 +895,18 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                       <div className="text-sm text-muted-foreground">
                         共 {filteredStudents.length} 名学生
                       </div>
-                      {scoringHistory.length > 0 && (
-                        <Button onClick={undoLastAnswer} variant="outline" size="sm">
-                          <Undo className="w-4 h-4 mr-2" />
-                          撤销
+                      <div className="flex items-center gap-2">
+                        {scoringHistory.length > 0 && (
+                          <Button onClick={undoLastAnswer} variant="outline" size="sm">
+                            <Undo className="w-4 h-4 mr-2" />
+                            撤销
+                          </Button>
+                        )}
+                        <Button onClick={switchToNextStudent} variant="outline" size="sm">
+                          <ArrowRight className="w-4 h-4 mr-2" />
+                          切换学生 (Q)
                         </Button>
-                      )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -888,28 +977,53 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-center gap-6">
-                              <Button
-                                onClick={() => handleAnswer(true)}
-                                size="lg"
-                                className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4"
-                              >
-                                <Check className="w-6 h-6 mr-2" />
-                                正确 ({keyBindings.correct})
-                              </Button>
-                              <Button
-                                onClick={() => handleAnswer(false)}
-                                size="lg"
-                                variant="destructive"
-                                className="px-8 py-4"
-                              >
-                                <X className="w-6 h-6 mr-2" />
-                                错误 ({keyBindings.incorrect})
-                              </Button>
+                            <div className="space-y-4">
+                              {/* 答题按钮 */}
+                              <div className="flex items-center justify-center gap-6">
+                                <Button
+                                  onClick={() => handleAnswer(true)}
+                                  size="lg"
+                                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4"
+                                >
+                                  <Check className="w-6 h-6 mr-2" />
+                                  正确 ({keyBindings.correct})
+                                </Button>
+                                <Button
+                                  onClick={() => handleAnswer(false)}
+                                  size="lg"
+                                  variant="destructive"
+                                  className="px-8 py-4"
+                                >
+                                  <X className="w-6 h-6 mr-2" />
+                                  错误 ({keyBindings.incorrect})
+                                </Button>
+                              </div>
+
+                              {/* 全对/全错按钮 */}
+                              <div className="flex items-center justify-center gap-4 pt-4 border-t">
+                                <Button
+                                  onClick={handleAllCorrect}
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300"
+                                >
+                                  <Check className="w-4 h-4 mr-2" />
+                                  全对
+                                </Button>
+                                <Button
+                                  onClick={handleAllIncorrect}
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-red-50 hover:bg-red-100 text-red-700 border-red-300"
+                                >
+                                  <X className="w-4 h-4 mr-2" />
+                                  全错
+                                </Button>
+                              </div>
                             </div>
 
                             <div className="text-center text-sm text-muted-foreground">
-                              使用键盘快捷键 {keyBindings.correct} / {keyBindings.incorrect} 或点击按钮进行评分
+                              使用键盘快捷键 {keyBindings.correct} / {keyBindings.incorrect} 答题，Q键切换学生
                             </div>
                           </>
                         )}
@@ -1097,19 +1211,29 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                         </CardDescription>
                       </div>
                     </div>
-                    <Button
-                      onClick={() => {
-                        if (examDetailView && confirm('确定要删除这次考试的所有数据吗？此操作无法撤销。')) {
-                          deleteExam(examDetailView);
-                          setExamDetailView(null);
-                        }
-                      }}
-                      variant="destructive"
-                      size="sm"
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      删除考试
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => exportResults(examDetailView)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        导出Excel
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (examDetailView && confirm('确定要删除这次考试的所有数据吗？此操作无法撤销。')) {
+                            deleteExam(examDetailView);
+                            setExamDetailView(null);
+                          }
+                        }}
+                        variant="destructive"
+                        size="sm"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        删除考试
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
