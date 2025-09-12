@@ -1744,13 +1744,13 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                     <Label>班级列 (可选)</Label>
                     <Select
                       value={columnMapping.studentClass}
-                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, studentClass: value }))}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, studentClass: value === "__none__" ? "" : value }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="选择班级列" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">不选择</SelectItem>
+                        <SelectItem value="__none__">不选择</SelectItem>
                         {excelColumns.map(col => (
                           <SelectItem key={col} value={col}>{col}</SelectItem>
                         ))}
@@ -1771,7 +1771,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                         value={columnMapping.scores[i] || ''}
                         onValueChange={(value) => {
                           const newScores = { ...columnMapping.scores };
-                          if (value) {
+                          if (value && value !== "__none__") {
                             newScores[i] = value;
                           } else {
                             delete newScores[i];
@@ -1783,7 +1783,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                           <SelectValue placeholder="选择成绩列" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">不选择</SelectItem>
+                          <SelectItem value="__none__">不选择</SelectItem>
                           {excelColumns.filter(col => 
                             col !== columnMapping.studentName && 
                             col !== columnMapping.studentClass &&
