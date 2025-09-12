@@ -1390,78 +1390,13 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-6">
-                {exams.map(exam => {
-                  const results = getExamResults(exam.id!);
-                  return (
-                    <Card key={exam.id} className="shadow-card">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <CardTitle>{exam.name}</CardTitle>
-                            <CardDescription>
-                              {exam.total_questions} 题 · 总分 {exam.scores.reduce((sum, s) => sum + s, 0)} 分
-                              {results.length > 0 && (
-                                <span className="ml-4">
-                                  平均分: {getExamAverageScore(exam.id!)} 分
-                                </span>
-                              )}
-                            </CardDescription>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">
-                              {results.length} 人已评分
-                            </Badge>
-                            {results.length > 0 && (
-                              <Button
-                                onClick={() => exportResults(exam.id)}
-                                size="sm"
-                                variant="outline"
-                              >
-                                <Download className="w-4 h-4 mr-2" />
-                                导出
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardHeader>
-                      {results.length > 0 && (
-                        <CardContent>
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
-                              <thead>
-                                <tr className="border-b">
-                                  <th className="text-left py-2">姓名</th>
-                                  <th className="text-left py-2">班级</th>
-                                  <th className="text-center py-2">总分</th>
-                                  <th className="text-center py-2">正确率</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {results.map(result => {
-                                  const student = students.find(s => s.id === result.student_id);
-                                  return (
-                                    <tr key={result.id} className="border-b">
-                                      <td className="py-2">{student?.name}</td>
-                                      <td className="py-2">{student?.class}</td>
-                                      <td className="text-center py-2">
-                                        {result.total_score}/{exam.scores.reduce((sum, s) => sum + s, 0)}
-                                      </td>
-                                      <td className="text-center py-2">
-                                        {((result.correct_count / exam.total_questions) * 100).toFixed(1)}%
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </CardContent>
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
+              <ResultsView 
+                exams={exams}
+                students={students}
+                examResults={examResults}
+                getExamResults={getExamResults}
+                exportResults={exportResults}
+              />
             )}
           </TabsContent>
 
@@ -1862,6 +1797,264 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
           </DialogContent>
         </Dialog>
       </div>
+    </div>
+  );
+};
+
+// ResultsView 组件 - 查看成绩的新界面
+const ResultsView = ({ 
+  exams, 
+  students, 
+  examResults, 
+  getExamResults, 
+  exportResults 
+}: {
+  exams: ExamConfig[];
+  students: Student[];
+  examResults: ExamResult[];
+  getExamResults: (examId: string) => ExamResult[];
+  exportResults: (examId?: string) => void;
+}) => {
+  const [selectedExams, setSelectedExams] = useState<string[]>([]);
+  const [nameFilter, setNameFilter] = useState('');
+  
+  // 切换考试选择
+  const toggleExam = (examId: string) => {
+    setSelectedExams(prev => 
+      prev.includes(examId) 
+        ? prev.filter(id => id !== examId)
+        : [...prev, examId]
+    );
+  };
+
+  // 获取学生在指定考试中的成绩
+  const getStudentScore = (studentId: string, examId: string) => {
+    const result = examResults.find(r => r.student_id === studentId && r.exam_id === examId);
+    return result;
+  };
+
+  // 筛选学生
+  const filteredStudents = students.filter(student =>
+    student.name.toLowerCase().includes(nameFilter.toLowerCase())
+  );
+
+  // 导出选中考试的成绩
+  const exportSelectedExams = () => {
+    if (selectedExams.length === 0) {
+      toast({
+        title: "请选择考试",
+        description: "请先选择要导出的考试",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const data = filteredStudents.map(student => {
+      const row: any = {
+        姓名: student.name,
+        班级: student.class,
+      };
+      
+      selectedExams.forEach(examId => {
+        const exam = exams.find(e => e.id === examId);
+        const result = getStudentScore(student.id!, examId);
+        const maxScore = exam ? exam.scores.reduce((sum, s) => sum + s, 0) : 0;
+        
+        if (exam) {
+          row[`${exam.name}_得分`] = result ? result.total_score : '-';
+          row[`${exam.name}_满分`] = maxScore;
+          row[`${exam.name}_正确率`] = result ? `${((result.correct_count / exam.total_questions) * 100).toFixed(1)}%` : '-';
+        }
+      });
+      
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "学生成绩");
+    
+    const examNames = selectedExams.map(id => exams.find(e => e.id === id)?.name).join('_');
+    XLSX.writeFile(workbook, `学生成绩_${examNames}_${new Date().toLocaleDateString()}.xlsx`);
+    
+    toast({
+      title: "导出成功",
+      description: "成绩数据已导出到Excel文件",
+    });
+  };
+
+  const { toast } = useToast();
+
+  return (
+    <div className="space-y-6">
+      {/* 考试选择区域 */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="w-5 h-5 text-accent" />
+            选择考试
+          </CardTitle>
+          <CardDescription>
+            勾选要查看的考试，可多选查看学生历次考试成绩
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {exams.map(exam => {
+              const results = getExamResults(exam.id!);
+              const isSelected = selectedExams.includes(exam.id!);
+              
+              return (
+                <div
+                  key={exam.id}
+                  className={`border rounded-lg p-4 cursor-pointer transition-all hover:shadow-md ${
+                    isSelected ? 'border-primary bg-primary/5' : 'border-border'
+                  }`}
+                  onClick={() => toggleExam(exam.id!)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                      isSelected ? 'bg-primary border-primary' : 'border-border'
+                    }`}>
+                      {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sm truncate">{exam.name}</h4>
+                      <p className="text-xs text-muted-foreground">
+                        {exam.total_questions}题 · {results.length}人已评分
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {selectedExams.length > 0 && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <Badge variant="secondary">
+                已选择 {selectedExams.length} 个考试
+              </Badge>
+              <Button onClick={exportSelectedExams} variant="outline" size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                导出选中考试成绩
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 学生成绩列表 */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-accent" />
+                学生成绩列表
+              </CardTitle>
+              <CardDescription>
+                {selectedExams.length === 0 
+                  ? '请先选择考试以查看成绩'
+                  : `显示 ${filteredStudents.length} 名学生的成绩`
+                }
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="name-filter" className="text-sm">筛选学生:</Label>
+                <Input
+                  id="name-filter"
+                  placeholder="输入学生姓名..."
+                  value={nameFilter}
+                  onChange={(e) => setNameFilter(e.target.value)}
+                  className="w-32"
+                />
+              </div>
+              <Badge variant="outline">
+                {filteredStudents.length} 名学生
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        
+        {selectedExams.length === 0 ? (
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <BookOpen className="w-16 h-16 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">请选择考试</h3>
+            <p className="text-muted-foreground">
+              在上方勾选要查看的考试，即可显示学生成绩
+            </p>
+          </CardContent>
+        ) : (
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-medium">姓名</th>
+                    <th className="text-left py-3 px-4 font-medium">班级</th>
+                    {selectedExams.map(examId => {
+                      const exam = exams.find(e => e.id === examId);
+                      return exam ? (
+                        <th key={examId} className="text-center py-3 px-4 font-medium">
+                          <div className="space-y-1">
+                            <div className="text-sm">{exam.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              满分 {exam.scores.reduce((sum, s) => sum + s, 0)}
+                            </div>
+                          </div>
+                        </th>
+                      ) : null;
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map(student => (
+                    <tr key={student.id} className="border-b hover:bg-muted/50 transition-colors">
+                      <td className="py-3 px-4 font-medium">{student.name}</td>
+                      <td className="py-3 px-4 text-muted-foreground">{student.class || '-'}</td>
+                      {selectedExams.map(examId => {
+                        const exam = exams.find(e => e.id === examId);
+                        const result = getStudentScore(student.id!, examId);
+                        const maxScore = exam ? exam.scores.reduce((sum, s) => sum + s, 0) : 0;
+                        
+                        return (
+                          <td key={examId} className="py-3 px-4 text-center">
+                            {result ? (
+                              <div className="space-y-1">
+                                <div className="font-medium">
+                                  {result.total_score}/{maxScore}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {((result.correct_count / exam!.total_questions) * 100).toFixed(1)}%
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-muted-foreground">-</div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  
+                  {filteredStudents.length === 0 && (
+                    <tr>
+                      <td 
+                        colSpan={2 + selectedExams.length} 
+                        className="py-8 text-center text-muted-foreground"
+                      >
+                        没有找到匹配的学生
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 };
