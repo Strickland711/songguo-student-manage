@@ -24,7 +24,9 @@ import {
   Filter,
   Keyboard,
   Undo,
-  ArrowRight
+  ArrowRight,
+  Upload,
+  Map
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Student } from '@/hooks/useStudentData';
@@ -57,6 +59,16 @@ interface ExamResult {
 interface KeyBinding {
   correct: string;
   incorrect: string;
+}
+
+interface ExcelColumnMapping {
+  studentName: string;
+  studentClass: string;
+  scores: { [key: string]: string };
+}
+
+interface ExcelData {
+  [key: string]: any;
 }
 
 interface ScoringSystemProps {
@@ -98,7 +110,18 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   
   // 登分时学生选择状态
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  
+
+  // Excel导入相关状态
+  const [excelData, setExcelData] = useState<ExcelData[]>([]);
+  const [excelColumns, setExcelColumns] = useState<string[]>([]);
+  const [showExcelMapping, setShowExcelMapping] = useState(false);
+  const [columnMapping, setColumnMapping] = useState<ExcelColumnMapping>({
+    studentName: '',
+    studentClass: '',
+    scores: {}
+  });
+  const [excelExamName, setExcelExamName] = useState('');
+
   const { toast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -699,6 +722,213 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     await finishStudentScoring(currentStudent, newAnswers);
   };
 
+  // 处理Excel文件上传
+  const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        
+        if (jsonData.length === 0) {
+          toast({
+            title: "文件错误",
+            description: "Excel文件为空",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // 第一行作为列名
+        const headers = jsonData[0] as string[];
+        const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== ''));
+        
+        const formattedData = rows.map(row => {
+          const obj: ExcelData = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index] || '';
+          });
+          return obj;
+        });
+
+        setExcelColumns(headers);
+        setExcelData(formattedData);
+        setExcelExamName(`导入考试_${new Date().toLocaleDateString()}`);
+        setColumnMapping({
+          studentName: '',
+          studentClass: '',
+          scores: {}
+        });
+        setShowExcelMapping(true);
+
+        toast({
+          title: "文件上传成功",
+          description: `已读取 ${formattedData.length} 行数据，${headers.length} 列`,
+        });
+      } catch (error: any) {
+        toast({
+          title: "文件解析失败",
+          description: error.message || "请确保文件格式正确",
+          variant: "destructive",
+        });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    
+    // 重置文件输入
+    event.target.value = '';
+  };
+
+  // 处理Excel数据导入
+  const processExcelImport = async () => {
+    if (!excelExamName.trim() || !columnMapping.studentName) {
+      toast({
+        title: "配置不完整",
+        description: "请填写考试名称并至少配置学生姓名列",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user) return;
+
+    // 检查考试名称是否重复
+    const existingExam = exams.find(exam => exam.name === excelExamName.trim());
+    if (existingExam) {
+      toast({
+        title: "导入失败",
+        description: "考试名称已存在，请使用不同的名称",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // 获取所有题目列
+      const scoreColumns = Object.values(columnMapping.scores);
+      const totalQuestions = scoreColumns.length;
+      
+      if (totalQuestions === 0) {
+        toast({
+          title: "配置错误",
+          description: "请至少配置一个成绩列",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 计算每题满分（假设满分为每题可能的最高分）
+      const questionScores: number[] = [];
+      for (let i = 0; i < totalQuestions; i++) {
+        const column = scoreColumns[i];
+        const maxScore = Math.max(...excelData.map(row => {
+          const value = parseFloat(row[column]);
+          return isNaN(value) ? 0 : value;
+        }));
+        questionScores.push(maxScore > 0 ? maxScore : 10); // 默认10分
+      }
+
+      // 创建考试
+      const { data: examData, error: examError } = await supabase
+        .from('exams')
+        .insert({
+          user_id: user.id,
+          name: excelExamName.trim(),
+          total_questions: totalQuestions,
+          scores: questionScores
+        })
+        .select()
+        .single();
+
+      if (examError) throw examError;
+
+      let processedCount = 0;
+      let skippedCount = 0;
+      
+      // 处理每个学生的成绩
+      for (const row of excelData) {
+        const studentName = row[columnMapping.studentName]?.toString().trim();
+        if (!studentName) continue;
+
+        // 查找对应的学生
+        const matchedStudent = students.find(s => s.name === studentName);
+        if (!matchedStudent) {
+          skippedCount++;
+          continue;
+        }
+
+        // 解析成绩数据
+        const answers: StudentAnswer[] = [];
+        let totalScore = 0;
+        let correctCount = 0;
+
+        scoreColumns.forEach((column, questionIndex) => {
+          const score = parseFloat(row[column]) || 0;
+          const isCorrect = score > 0;
+          
+          answers.push({
+            studentId: matchedStudent.id!,
+            questionIndex,
+            isCorrect,
+            score
+          });
+
+          totalScore += score;
+          if (isCorrect) correctCount++;
+        });
+
+        // 保存考试结果
+        const { error: resultError } = await supabase
+          .from('exam_results')
+          .insert({
+            user_id: user.id,
+            exam_id: examData.id,
+            student_id: matchedStudent.id!,
+            answers: answers as unknown as any,
+            total_score: totalScore,
+            correct_count: correctCount
+          });
+
+        if (resultError) {
+          console.error('保存成绩失败:', resultError);
+        } else {
+          processedCount++;
+        }
+      }
+
+      // 更新本地状态
+      const formattedExam: ExamConfig = {
+        ...examData,
+        scores: questionScores,
+        created_at: new Date(examData.created_at)
+      };
+      setExams(prev => [formattedExam, ...prev]);
+      await loadExamResults();
+
+      setShowExcelMapping(false);
+      setExcelData([]);
+      setExcelColumns([]);
+
+      toast({
+        title: "导入成功",
+        description: `已导入 ${processedCount} 名学生成绩${skippedCount > 0 ? `，跳过 ${skippedCount} 名未匹配学生` : ''}`,
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "导入失败",
+        description: error.message || "未知错误",
+        variant: "destructive",
+      });
+    }
+  };
+
   const currentStudent = isScoring && filteredStudents[currentStudentIndex];
 
   return (
@@ -859,6 +1089,52 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                 </CardContent>
               </Card>
             )}
+
+            {/* Excel导入考试 */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-accent" />
+                  Excel导入考试成绩
+                </CardTitle>
+                <CardDescription>
+                  上传包含学生成绩的Excel文件，系统将自动匹配学生并创建考试记录
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="border-2 border-dashed border-primary/20 rounded-lg p-8 text-center">
+                  <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">选择Excel文件</p>
+                    <p className="text-xs text-muted-foreground">
+                      支持 .xlsx 和 .xls 格式，第一行应为列标题
+                    </p>
+                  </div>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleExcelUpload}
+                    className="hidden"
+                    id="excel-upload"
+                  />
+                  <label htmlFor="excel-upload">
+                    <Button asChild className="mt-4">
+                      <span>选择文件</span>
+                    </Button>
+                  </label>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-900 mb-2">使用说明：</h4>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• Excel第一行必须是列标题（如：姓名、班级、第1题、第2题等）</li>
+                    <li>• 学生姓名必须与系统中现有学生完全匹配</li>
+                    <li>• 不匹配的学生将被跳过，不会创建新学生</li>
+                    <li>• 成绩列应包含数字分数，0分表示错误，大于0表示正确</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* 评分界面 */}
@@ -1418,6 +1694,170 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
               <Button onClick={() => setShowKeySettings(false)} className="w-full">
                 确定
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Excel列映射配置对话框 */}
+        <Dialog open={showExcelMapping} onOpenChange={setShowExcelMapping}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Map className="w-5 h-5" />
+                配置Excel列映射
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-6">
+              {/* 考试名称 */}
+              <div>
+                <Label htmlFor="excel-exam-name">考试名称</Label>
+                <Input
+                  id="excel-exam-name"
+                  value={excelExamName}
+                  onChange={(e) => setExcelExamName(e.target.value)}
+                  placeholder="请输入考试名称"
+                />
+              </div>
+
+              {/* 基础信息映射 */}
+              <div className="space-y-4">
+                <h3 className="font-medium">基础信息列映射</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>学生姓名列 *</Label>
+                    <Select
+                      value={columnMapping.studentName}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, studentName: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择姓名列" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {excelColumns.map(col => (
+                          <SelectItem key={col} value={col}>{col}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>班级列 (可选)</Label>
+                    <Select
+                      value={columnMapping.studentClass}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, studentClass: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择班级列" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">不选择</SelectItem>
+                        {excelColumns.map(col => (
+                          <SelectItem key={col} value={col}>{col}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 成绩列映射 */}
+              <div className="space-y-4">
+                <h3 className="font-medium">成绩列映射</h3>
+                <div className="space-y-2">
+                  {Array.from({ length: Math.max(1, Object.keys(columnMapping.scores).length + 1) }, (_, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-16 text-sm">第{i + 1}题:</span>
+                      <Select
+                        value={columnMapping.scores[i] || ''}
+                        onValueChange={(value) => {
+                          const newScores = { ...columnMapping.scores };
+                          if (value) {
+                            newScores[i] = value;
+                          } else {
+                            delete newScores[i];
+                          }
+                          setColumnMapping(prev => ({ ...prev, scores: newScores }));
+                        }}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="选择成绩列" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">不选择</SelectItem>
+                          {excelColumns.filter(col => 
+                            col !== columnMapping.studentName && 
+                            col !== columnMapping.studentClass &&
+                            !Object.values(columnMapping.scores).includes(col)
+                          ).map(col => (
+                            <SelectItem key={col} value={col}>{col}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 数据预览 */}
+              {excelData.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-medium">数据预览 (前3行)</h3>
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {excelColumns.map(col => (
+                            <th key={col} className="p-2 text-left border-r">{col}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {excelData.slice(0, 3).map((row, i) => (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            {excelColumns.map(col => (
+                              <td key={col} className="p-2 border-r">{row[col]}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* 匹配结果预览 */}
+              {columnMapping.studentName && (
+                <div className="space-y-2">
+                  <h3 className="font-medium">学生匹配结果</h3>
+                  <div className="bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto">
+                    {excelData.map((row, i) => {
+                      const studentName = row[columnMapping.studentName]?.toString().trim();
+                      const matched = students.find(s => s.name === studentName);
+                      return (
+                        <div key={i} className="text-sm flex items-center gap-2">
+                          <span className={matched ? 'text-green-600' : 'text-red-500'}>
+                            {matched ? '✓' : '✗'}
+                          </span>
+                          <span>{studentName}</span>
+                          {matched && <Badge variant="secondary" className="text-xs">{matched.class}</Badge>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowExcelMapping(false)}
+                >
+                  取消
+                </Button>
+                <Button onClick={processExcelImport}>
+                  开始导入
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
