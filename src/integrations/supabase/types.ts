@@ -119,6 +119,39 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_records: {
+        Row: {
+          created_at: string
+          feedback_date: string
+          id: string
+          mood: string
+          notes: string | null
+          student_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feedback_date: string
+          id?: string
+          mood: string
+          notes?: string | null
+          student_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feedback_date?: string
+          id?: string
+          mood?: string
+          notes?: string | null
+          student_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
