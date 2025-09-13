@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings } from 'lucide-react';
+import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
@@ -24,7 +24,23 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterClass, setFilterClass] = useState<string>('all');
   const [searchName, setSearchName] = useState('');
+  const [pendingFeedbacks, setPendingFeedbacks] = useState<Record<string, { mood: 'happy' | 'neutral' | 'sad', notes?: string }>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+
+  // 页面离开提示
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '您有未保存的反馈，确定要离开吗？';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   const moodIcons = {
     happy: { icon: Smile, color: 'text-green-500', bgColor: 'bg-green-50 border-green-200', label: '高兴' },
@@ -60,36 +76,99 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
     return dayFeedbacks.length;
   };
 
-  // 获取学生的当天反馈
-  const getStudentFeedback = (studentId: string) => {
-    return todayFeedbacks.find(f => f.student_id === studentId);
+  // 获取活跃度颜色
+  const getActivityColor = (count: number) => {
+    if (count === 0) return '';
+    if (count <= 10) return 'bg-blue-500';
+    if (count <= 20) return 'bg-cyan-500';
+    if (count <= 30) return 'bg-green-500';
+    if (count <= 40) return 'bg-yellow-500';
+    if (count <= 50) return 'bg-orange-500';
+    if (count <= 60) return 'bg-red-500';
+    if (count <= 70) return 'bg-pink-500';
+    if (count <= 80) return 'bg-purple-500';
+    if (count <= 90) return 'bg-indigo-500';
+    if (count <= 100) return 'bg-violet-500';
+    return 'bg-slate-800'; // 100条以上固定颜色
   };
 
-  // 直接保存反馈（乐观更新）
-  const handleQuickFeedback = useCallback(async (studentId: string, mood: 'happy' | 'neutral' | 'sad', notes?: string) => {
-    try {
-      const feedbackData: Omit<FeedbackRecord, 'id'> = {
-        student_id: studentId,
-        feedback_date: format(selectedDate, 'yyyy-MM-dd'),
-        mood,
-        notes: notes?.trim() || undefined
+  // 获取学生的当天反馈（包括未保存的）
+  const getStudentFeedback = (studentId: string) => {
+    const savedFeedback = todayFeedbacks.find(f => f.student_id === studentId);
+    const pendingFeedback = pendingFeedbacks[studentId];
+    
+    if (pendingFeedback) {
+      return {
+        ...savedFeedback,
+        mood: pendingFeedback.mood,
+        notes: pendingFeedback.notes,
+        isPending: true
       };
+    }
+    
+    return savedFeedback;
+  };
 
-      await saveFeedbackRecord(feedbackData);
-      
-      const student = students.find(s => s.id === studentId);
+  // 设置本地反馈状态
+  const handleLocalFeedback = useCallback((studentId: string, mood: 'happy' | 'neutral' | 'sad', notes?: string) => {
+    setPendingFeedbacks(prev => ({
+      ...prev,
+      [studentId]: { mood, notes: notes?.trim() || undefined }
+    }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  // 批量保存反馈
+  const handleSaveAll = useCallback(async () => {
+    if (Object.keys(pendingFeedbacks).length === 0) {
       toast({
-        title: "反馈已保存",
-        description: `已记录对 ${student?.name} 的反馈: ${moodIcons[mood].label}`,
+        title: "没有需要保存的反馈",
+        variant: "default",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      const savePromises = Object.entries(pendingFeedbacks).map(async ([studentId, feedback]) => {
+        try {
+          const feedbackData: Omit<FeedbackRecord, 'id'> = {
+            student_id: studentId,
+            feedback_date: format(selectedDate, 'yyyy-MM-dd'),
+            mood: feedback.mood,
+            notes: feedback.notes
+          };
+
+          await saveFeedbackRecord(feedbackData);
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          throw error;
+        }
+      });
+
+      await Promise.all(savePromises);
+      
+      setPendingFeedbacks({});
+      setHasUnsavedChanges(false);
+      
+      toast({
+        title: "保存成功",
+        description: `成功保存了 ${successCount} 条反馈`,
       });
     } catch (error) {
       toast({
         title: "保存失败",
-        description: "反馈保存失败，请重试",
+        description: `成功: ${successCount} 条，失败: ${errorCount} 条`,
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
-  }, [selectedDate, saveFeedbackRecord, students, toast, moodIcons]);
+  }, [pendingFeedbacks, selectedDate, saveFeedbackRecord, toast]);
 
   // 自定义日历日期渲染
   const dayContent = (date: Date) => {
@@ -109,9 +188,9 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
         {activity > 0 && (
           <div className={cn(
             "absolute -top-1 -right-1 w-3 h-3 rounded-full text-xs flex items-center justify-center text-white font-bold",
-            activity >= 5 ? "bg-green-500" : activity >= 2 ? "bg-yellow-500" : "bg-blue-500"
+            getActivityColor(activity)
           )}>
-            {activity > 9 ? "9+" : activity}
+            {activity > 99 ? "99+" : activity}
           </div>
         )}
       </div>
@@ -168,6 +247,21 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                 <MessageSquare className="w-4 h-4 mr-1" />
                 今日反馈 {todayFeedbacks.length} 条
               </Badge>
+              {hasUnsavedChanges && (
+                <Badge variant="outline" className="px-3 py-1 border-orange-500 text-orange-600">
+                  <AlertTriangle className="w-4 h-4 mr-1" />
+                  {Object.keys(pendingFeedbacks).length} 条未保存
+                </Badge>
+              )}
+              <Button 
+                onClick={handleSaveAll}
+                disabled={!hasUnsavedChanges || isSaving}
+                className="flex items-center gap-2"
+                variant={hasUnsavedChanges ? "default" : "outline"}
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? '保存中...' : '保存所有反馈'}
+              </Button>
             </div>
           </div>
 
@@ -195,18 +289,50 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                   
                   <div className="mt-4 space-y-2">
                     <h4 className="font-medium text-sm">活跃度说明:</h4>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span>1条反馈</span>
+                        <span>1-10条</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                        <span>2-4条</span>
+                        <div className="w-3 h-3 bg-cyan-500 rounded-full"></div>
+                        <span>11-20条</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                        <span>5条以上</span>
+                        <span>21-30条</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                        <span>31-40条</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                        <span>41-50条</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <span>51-60条</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-pink-500 rounded-full"></div>
+                        <span>61-70条</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                        <span>71-80条</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-indigo-500 rounded-full"></div>
+                        <span>81-90条</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-violet-500 rounded-full"></div>
+                        <span>91-100条</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-slate-800 rounded-full"></div>
+                        <span>100+条</span>
                       </div>
                     </div>
                   </div>
@@ -268,6 +394,17 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                           </div>
 
                           <div className="flex items-center gap-2">
+                            {/* 已反馈状态提示 */}
+                            {(feedback || pendingFeedbacks[student.id!]) && (
+                              <div className="text-xs text-muted-foreground mr-1">
+                                {pendingFeedbacks[student.id!] ? (
+                                  <span className="text-orange-600">● 待保存</span>
+                                ) : (
+                                  <span className="text-green-600">● 已反馈</span>
+                                )}
+                              </div>
+                            )}
+                            
                             {/* 快速反馈按钮 */}
                             {Object.entries(moodIcons).map(([mood, config]) => {
                               const Icon = config.icon;
@@ -278,7 +415,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                                   key={mood}
                                   size="sm"
                                   variant={isActive ? "default" : "outline"}
-                                  onClick={() => handleQuickFeedback(student.id!, mood as any)}
+                                  onClick={() => handleLocalFeedback(student.id!, mood as any)}
                                   className={cn(
                                     "flex items-center gap-1 h-8 px-2",
                                     isActive && "shadow-md"
@@ -300,18 +437,12 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                                 const notes = prompt('请输入反馈备注:', feedback?.notes || '');
                                 if (notes !== null) {
                                   const currentMood = feedback?.mood || 'neutral';
-                                  handleQuickFeedback(student.id!, currentMood, notes);
+                                  handleLocalFeedback(student.id!, currentMood, notes);
                                 }
                               }}
                             >
                               <MessageSquare className="w-4 h-4" />
                             </Button>
-
-                            {feedback && (
-                              <div className="ml-2 text-xs text-muted-foreground">
-                                已反馈
-                              </div>
-                            )}
                           </div>
                         </div>
                       );
