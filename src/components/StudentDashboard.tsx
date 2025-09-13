@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
 import ClassSpace from './ClassSpace';
-import FeedbackSystem from './FeedbackSystem';
+
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
 
 interface ColumnMapping {
@@ -69,6 +70,7 @@ const StudentDashboard = () => {
   const [newStudent, setNewStudent] = useState<Partial<Student>>({ name: '', class: '' });
   
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -434,6 +436,14 @@ const StudentDashboard = () => {
               <BookOpen className="w-4 h-4 mr-2" />
               进入登分系统
             </Button>
+            <Button 
+              onClick={() => navigate('/feedback')} 
+              variant="outline"
+              disabled={students.length === 0}
+            >
+              <MessageSquare className="w-4 h-4 mr-2" />
+              进入反馈系统
+            </Button>
             <Button onClick={exportToExcel} variant="outline" disabled={students.length === 0}>
               <FileSpreadsheet className="w-4 h-4 mr-2" />
               导出Excel
@@ -442,11 +452,10 @@ const StudentDashboard = () => {
         </div>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-fit">
+          <TabsList className="grid grid-cols-4 w-fit">
             <TabsTrigger value="dashboard">数据导入</TabsTrigger>
             <TabsTrigger value="students">学生管理</TabsTrigger>
             <TabsTrigger value="classes">班级空间</TabsTrigger>
-            <TabsTrigger value="feedback">反馈系统</TabsTrigger>
             <TabsTrigger value="settings">标签设置</TabsTrigger>
           </TabsList>
 
@@ -840,9 +849,6 @@ const StudentDashboard = () => {
             />
           </TabsContent>
 
-          <TabsContent value="feedback" className="space-y-6">
-            <FeedbackSystem students={students} />
-          </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
             {/* Custom Fields Management */}
