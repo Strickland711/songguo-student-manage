@@ -7,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus, Trash2, Edit } from 'lucide-react';
 import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
@@ -20,20 +22,16 @@ interface FeedbackSystemProps {
 }
 
 const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
-  const { feedbackRecords, loading, saveFeedbackRecord, getFeedbackByDate } = useFeedbackData();
+  const { feedbackRecords, loading, saveFeedbackRecord, getFeedbackByDate, deleteFeedbackRecord } = useFeedbackData();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterClass, setFilterClass] = useState<string>('all');
   const [searchName, setSearchName] = useState('');
   const [pendingFeedbacks, setPendingFeedbacks] = useState<Record<string, { mood: 'happy' | 'neutral' | 'sad', notes?: string }>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  
-  // 反馈计划相关状态
-  const [planningCurrentWeek, setPlanningCurrentWeek] = useState(new Date());
-  const [planningFilterClass, setPlanningFilterClass] = useState<string>('all');
-  const [planningSearchName, setPlanningSearchName] = useState('');
-  const [planningPendingFeedbacks, setPlanningPendingFeedbacks] = useState<Record<string, { mood: 'happy' | 'neutral' | 'sad', notes?: string }>>({});
-  const [planningHasUnsavedChanges, setPlanningHasUnsavedChanges] = useState(false);
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [currentNotesStudent, setCurrentNotesStudent] = useState<{ id: string, name: string } | null>(null);
+  const [notesInput, setNotesInput] = useState('');
   
   const { toast } = useToast();
 
@@ -178,6 +176,78 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
     }
   }, [pendingFeedbacks, selectedDate, saveFeedbackRecord, toast]);
 
+  // 清空当日所有反馈记录
+  const handleClearTodayFeedbacks = useCallback(async () => {
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    const todayRecords = getFeedbackByDate(dateStr);
+    
+    if (todayRecords.length === 0) {
+      toast({
+        title: "没有需要清空的记录",
+        description: "当前日期没有反馈记录",
+        variant: "default",
+      });
+      return;
+    }
+
+    if (!confirm(`确定要清空 ${format(selectedDate, 'yyyy年MM月dd日', { locale: zhCN })} 的所有反馈记录吗？共 ${todayRecords.length} 条记录将被删除。`)) {
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      // 批量删除当天的反馈记录
+      const deletePromises = todayRecords.map(record => 
+        deleteFeedbackRecord(record.id!)
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // 清空本地待保存的反馈
+      setPendingFeedbacks(prev => {
+        const newPending = { ...prev };
+        todayRecords.forEach(record => {
+          delete newPending[record.student_id];
+        });
+        return newPending;
+      });
+      
+      toast({
+        title: "清空成功",
+        description: `已清空 ${todayRecords.length} 条反馈记录`,
+      });
+    } catch (error) {
+      toast({
+        title: "清空失败",
+        description: "清空反馈记录时发生错误，请重试",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedDate, getFeedbackByDate, deleteFeedbackRecord, toast]);
+
+  // 打开备注对话框
+  const openNotesDialog = (student: { id: string, name: string }) => {
+    const feedback = getStudentFeedback(student.id);
+    setCurrentNotesStudent(student);
+    setNotesInput(feedback?.notes || '');
+    setNotesDialogOpen(true);
+  };
+
+  // 保存备注
+  const handleSaveNotes = () => {
+    if (currentNotesStudent) {
+      const feedback = getStudentFeedback(currentNotesStudent.id);
+      const currentMood = feedback?.mood || 'neutral';
+      handleLocalFeedback(currentNotesStudent.id, currentMood, notesInput);
+    }
+    setNotesDialogOpen(false);
+    setCurrentNotesStudent(null);
+    setNotesInput('');
+  };
+
   // 自定义日历日期渲染
   const dayContent = (date: Date) => {
     const activity = getFeedbackActivityForDate(date);
@@ -261,6 +331,15 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                   {Object.keys(pendingFeedbacks).length} 条未保存
                 </Badge>
               )}
+              <Button 
+                onClick={handleClearTodayFeedbacks}
+                disabled={isSaving || todayFeedbacks.length === 0}
+                variant="outline"
+                className="flex items-center gap-2 border-red-200 text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                清空当日反馈
+              </Button>
               <Button 
                 onClick={handleSaveAll}
                 disabled={!hasUnsavedChanges || isSaving}
@@ -441,15 +520,10 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                               variant="ghost"
                               className="h-8 px-2"
                               title="添加备注"
-                              onClick={() => {
-                                const notes = prompt('请输入反馈备注:', feedback?.notes || '');
-                                if (notes !== null) {
-                                  const currentMood = feedback?.mood || 'neutral';
-                                  handleLocalFeedback(student.id!, currentMood, notes);
-                                }
-                              }}
+                              onClick={() => openNotesDialog({ id: student.id!, name: student.name })}
                             >
                               <MessageSquare className="w-4 h-4" />
+                              {feedback?.notes && <div className="w-1 h-1 bg-primary rounded-full ml-1" />}
                             </Button>
                           </div>
                         </div>
@@ -461,6 +535,38 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
             </div>
           </div>
         </TabsContent>
+
+        {/* 备注编辑对话框 */}
+        <Dialog open={notesDialogOpen} onOpenChange={setNotesDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>编辑反馈备注</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">学生姓名</label>
+                <div className="text-muted-foreground">{currentNotesStudent?.name}</div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">反馈备注</label>
+                <Textarea
+                  placeholder="请输入反馈备注..."
+                  value={notesInput}
+                  onChange={(e) => setNotesInput(e.target.value)}
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNotesDialogOpen(false)}>
+                取消
+              </Button>
+              <Button onClick={handleSaveNotes}>
+                保存备注
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* 其他模块的占位内容 */}
         <TabsContent value="segmentation" className="space-y-6">
@@ -527,6 +633,10 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
   const [pendingFeedbacks, setPendingFeedbacks] = useState<Record<string, { mood: 'happy' | 'neutral' | 'sad', notes?: string }>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [weekPickerOpen, setWeekPickerOpen] = useState(false);
+  const [planningNotesDialogOpen, setPlanningNotesDialogOpen] = useState(false);
+  const [planningCurrentNotesStudent, setPlanningCurrentNotesStudent] = useState<{ id: string, name: string } | null>(null);
+  const [planningNotesInput, setPlanningNotesInput] = useState('');
   const { toast } = useToast();
 
   const moodIcons = {
@@ -660,6 +770,27 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
     }
   }, [pendingFeedbacks, saveFeedbackRecord, toast]);
 
+  // 打开备注对话框
+  const openPlanningNotesDialog = (student: { id: string, name: string }) => {
+    const status = getStudentFeedbackStatus(student.id);
+    const currentNotes = status.pendingFeedback?.notes || status.lastFeedback?.notes || '';
+    setPlanningCurrentNotesStudent(student);
+    setPlanningNotesInput(currentNotes);
+    setPlanningNotesDialogOpen(true);
+  };
+
+  // 保存备注
+  const handleSavePlanningNotes = () => {
+    if (planningCurrentNotesStudent) {
+      const status = getStudentFeedbackStatus(planningCurrentNotesStudent.id);
+      const currentMood = status.pendingFeedback?.mood || status.lastFeedback?.mood || 'neutral';
+      handleLocalFeedback(planningCurrentNotesStudent.id, currentMood, planningNotesInput);
+    }
+    setPlanningNotesDialogOpen(false);
+    setPlanningCurrentNotesStudent(null);
+    setPlanningNotesInput('');
+  };
+
   const classStats = getClassStats();
 
   return (
@@ -710,9 +841,28 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                   >
                     ←
                   </Button>
-                  <div className="text-sm font-medium">
-                    {format(weekStart, 'MM/dd', { locale: zhCN })} - {format(weekEnd, 'MM/dd', { locale: zhCN })}
-                  </div>
+                  <Popover open={weekPickerOpen} onOpenChange={setWeekPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" className="text-sm font-medium hover:bg-muted">
+                        {format(weekStart, 'MM/dd', { locale: zhCN })} - {format(weekEnd, 'MM/dd', { locale: zhCN })}
+                        <CalendarIcon className="w-4 h-4 ml-2" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="center">
+                      <Calendar
+                        mode="single"
+                        selected={currentWeek}
+                        onSelect={(date) => {
+                          if (date) {
+                            setCurrentWeek(date);
+                            setWeekPickerOpen(false);
+                          }
+                        }}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <Button
                     variant="outline"
                     size="sm"
@@ -737,7 +887,12 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                 {Array.from(classStats.entries()).map(([className, stats]) => (
                   <div key={className} className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>{className}</span>
+                      <button
+                        className="hover:text-primary cursor-pointer transition-colors"
+                        onClick={() => setFilterClass(className)}
+                      >
+                        {className}
+                      </button>
                       <span className="text-muted-foreground">
                         {stats.feedbackedStudents}/{stats.totalStudents}
                       </span>
@@ -858,16 +1013,11 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                           variant="ghost"
                           className="h-8 px-2"
                           title="添加备注"
-                          onClick={() => {
-                            const currentNotes = status.pendingFeedback?.notes || status.lastFeedback?.notes || '';
-                            const notes = prompt('请输入反馈备注:', currentNotes);
-                            if (notes !== null) {
-                              const currentMood = status.pendingFeedback?.mood || status.lastFeedback?.mood || 'neutral';
-                              handleLocalFeedback(student.id!, currentMood, notes);
-                            }
-                          }}
+                          onClick={() => openPlanningNotesDialog({ id: student.id!, name: student.name })}
                         >
                           <MessageSquare className="w-4 h-4" />
+                          {(status.pendingFeedback?.notes || status.lastFeedback?.notes) && 
+                            <div className="w-1 h-1 bg-primary rounded-full ml-1" />}
                         </Button>
                       </div>
                     </div>
@@ -878,6 +1028,38 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
           </Card>
         </div>
       </div>
+
+      {/* 备注编辑对话框 */}
+      <Dialog open={planningNotesDialogOpen} onOpenChange={setPlanningNotesDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>编辑反馈备注</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">学生姓名</label>
+              <div className="text-muted-foreground">{planningCurrentNotesStudent?.name}</div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">反馈备注</label>
+              <Textarea
+                placeholder="请输入反馈备注..."
+                value={planningNotesInput}
+                onChange={(e) => setPlanningNotesInput(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPlanningNotesDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleSavePlanningNotes}>
+              保存备注
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
