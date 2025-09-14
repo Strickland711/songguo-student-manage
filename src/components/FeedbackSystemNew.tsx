@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle } from 'lucide-react';
-import { format, isSameDay } from 'date-fns';
+import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus } from 'lucide-react';
+import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
 import { useStudentData, Student } from '@/hooks/useStudentData';
@@ -27,6 +27,14 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const [pendingFeedbacks, setPendingFeedbacks] = useState<Record<string, { mood: 'happy' | 'neutral' | 'sad', notes?: string }>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // 反馈计划相关状态
+  const [planningCurrentWeek, setPlanningCurrentWeek] = useState(new Date());
+  const [planningFilterClass, setPlanningFilterClass] = useState<string>('all');
+  const [planningSearchName, setPlanningSearchName] = useState('');
+  const [planningPendingFeedbacks, setPlanningPendingFeedbacks] = useState<Record<string, { mood: 'happy' | 'neutral' | 'sad', notes?: string }>>({});
+  const [planningHasUnsavedChanges, setPlanningHasUnsavedChanges] = useState(false);
+  
   const { toast } = useToast();
 
   // 页面离开提示
@@ -221,7 +229,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
             <BarChart3 className="w-4 h-4" />
             学员分层
           </TabsTrigger>
-          <TabsTrigger value="planning" className="flex items-center gap-2" disabled>
+          <TabsTrigger value="planning" className="flex items-center gap-2">
             <Target className="w-4 h-4" />
             反馈计划
           </TabsTrigger>
@@ -475,22 +483,11 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
         </TabsContent>
 
         <TabsContent value="planning" className="space-y-6">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="w-5 h-5 text-accent" />
-                反馈计划
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center h-64 text-muted-foreground">
-                <div className="text-center">
-                  <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>反馈计划功能正在开发中...</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <FeedbackPlanning 
+            students={students}
+            feedbackRecords={feedbackRecords}
+            saveFeedbackRecord={saveFeedbackRecord}
+          />
         </TabsContent>
 
         <TabsContent value="scripts" className="space-y-6">
@@ -512,6 +509,375 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+};
+
+// 反馈计划组件
+interface FeedbackPlanningProps {
+  students: Student[];
+  feedbackRecords: any[];
+  saveFeedbackRecord: (record: Omit<FeedbackRecord, 'id'>) => Promise<any>;
+}
+
+const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: FeedbackPlanningProps) => {
+  const [currentWeek, setCurrentWeek] = useState(new Date());
+  const [filterClass, setFilterClass] = useState<string>('all');
+  const [searchName, setSearchName] = useState('');
+  const [pendingFeedbacks, setPendingFeedbacks] = useState<Record<string, { mood: 'happy' | 'neutral' | 'sad', notes?: string }>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+
+  const moodIcons = {
+    happy: { icon: Smile, color: 'text-green-500', bgColor: 'bg-green-50 border-green-200', label: '高兴' },
+    neutral: { icon: Meh, color: 'text-amber-500', bgColor: 'bg-amber-50 border-amber-200', label: '一般' },
+    sad: { icon: Frown, color: 'text-red-500', bgColor: 'bg-red-50 border-red-200', label: '沮丧' }
+  };
+
+  // 获取当前周期的开始和结束日期
+  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+
+  // 获取所有班级用于筛选
+  const allClasses = useMemo(() => {
+    const classes = [...new Set(students.map(s => s.class))].filter(Boolean);
+    return classes.sort();
+  }, [students]);
+
+  // 筛选学生
+  const filteredStudents = useMemo(() => {
+    return students.filter(student => {
+      const matchesClass = filterClass === 'all' || student.class === filterClass;
+      const matchesName = !searchName || student.name.toLowerCase().includes(searchName.toLowerCase());
+      return matchesClass && matchesName;
+    });
+  }, [students, filterClass, searchName]);
+
+  // 获取学生在当前周期内的反馈记录
+  const getStudentWeekFeedbacks = (studentId: string) => {
+    return feedbackRecords.filter(record => {
+      if (record.student_id !== studentId) return false;
+      const recordDate = new Date(record.feedback_date);
+      return isWithinInterval(recordDate, { start: weekStart, end: weekEnd });
+    });
+  };
+
+  // 获取学生的反馈状态
+  const getStudentFeedbackStatus = (studentId: string) => {
+    const weekFeedbacks = getStudentWeekFeedbacks(studentId);
+    const pendingFeedback = pendingFeedbacks[studentId];
+    
+    return {
+      feedbackCount: weekFeedbacks.length,
+      hasFeedback: weekFeedbacks.length > 0 || !!pendingFeedback,
+      lastFeedback: weekFeedbacks[0], // 最新的反馈
+      pendingFeedback
+    };
+  };
+
+  // 按班级分组统计
+  const getClassStats = () => {
+    const stats = new Map();
+    
+    allClasses.forEach(className => {
+      const classStudents = students.filter(s => s.class === className);
+      const totalStudents = classStudents.length;
+      const feedbackedStudents = classStudents.filter(student => {
+        const status = getStudentFeedbackStatus(student.id!);
+        return status.hasFeedback;
+      }).length;
+      
+      stats.set(className, {
+        totalStudents,
+        feedbackedStudents,
+        percentage: totalStudents > 0 ? Math.round((feedbackedStudents / totalStudents) * 100) : 0
+      });
+    });
+    
+    return stats;
+  };
+
+  // 设置本地反馈状态
+  const handleLocalFeedback = useCallback((studentId: string, mood: 'happy' | 'neutral' | 'sad', notes?: string) => {
+    setPendingFeedbacks(prev => ({
+      ...prev,
+      [studentId]: { mood, notes: notes?.trim() || undefined }
+    }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  // 批量保存反馈
+  const handleSaveAll = useCallback(async () => {
+    if (Object.keys(pendingFeedbacks).length === 0) {
+      toast({
+        title: "没有需要保存的反馈",
+        variant: "default",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    let successCount = 0;
+    let errorCount = 0;
+    const today = format(new Date(), 'yyyy-MM-dd');
+
+    try {
+      const savePromises = Object.entries(pendingFeedbacks).map(async ([studentId, feedback]) => {
+        try {
+          const feedbackData: Omit<FeedbackRecord, 'id'> = {
+            student_id: studentId,
+            feedback_date: today,
+            mood: feedback.mood,
+            notes: feedback.notes
+          };
+
+          await saveFeedbackRecord(feedbackData);
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          throw error;
+        }
+      });
+
+      await Promise.all(savePromises);
+      
+      setPendingFeedbacks({});
+      setHasUnsavedChanges(false);
+      
+      toast({
+        title: "保存成功",
+        description: `成功保存了 ${successCount} 条反馈`,
+      });
+    } catch (error) {
+      toast({
+        title: "保存失败",
+        description: `成功: ${successCount} 条，失败: ${errorCount} 条`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [pendingFeedbacks, saveFeedbackRecord, toast]);
+
+  const classStats = getClassStats();
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-primary">反馈计划</h2>
+          <p className="text-muted-foreground mt-1">按周期管理学生反馈进度，确保每位学生都能及时获得反馈</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {hasUnsavedChanges && (
+            <Badge variant="outline" className="px-3 py-1 border-orange-500 text-orange-600">
+              <AlertTriangle className="w-4 h-4 mr-1" />
+              {Object.keys(pendingFeedbacks).length} 条待保存
+            </Badge>
+          )}
+          <Button 
+            onClick={handleSaveAll}
+            disabled={!hasUnsavedChanges || isSaving}
+            className="flex items-center gap-2"
+            variant={hasUnsavedChanges ? "default" : "outline"}
+          >
+            <Save className="w-4 h-4" />
+            {isSaving ? '保存中...' : '保存所有反馈'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* 周期设置和统计 */}
+        <div className="lg:col-span-1">
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-accent" />
+                反馈周期
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* 周期选择 */}
+              <div className="text-center">
+                <div className="flex items-center justify-between mb-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
+                  >
+                    ←
+                  </Button>
+                  <div className="text-sm font-medium">
+                    {format(weekStart, 'MM/dd', { locale: zhCN })} - {format(weekEnd, 'MM/dd', { locale: zhCN })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
+                  >
+                    →
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentWeek(new Date())}
+                  className="w-full"
+                >
+                  返回本周
+                </Button>
+              </div>
+
+              {/* 班级统计 */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">各班级反馈进度</h4>
+                {Array.from(classStats.entries()).map(([className, stats]) => (
+                  <div key={className} className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>{className}</span>
+                      <span className="text-muted-foreground">
+                        {stats.feedbackedStudents}/{stats.totalStudents}
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div
+                        className="bg-primary rounded-full h-2 transition-all"
+                        style={{ width: `${stats.percentage}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-right text-muted-foreground">
+                      {stats.percentage}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 学生反馈列表 */}
+        <div className="lg:col-span-3">
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-accent" />
+                学生反馈管理
+              </CardTitle>
+              <div className="flex items-center gap-4 mt-4">
+                {/* 班级筛选 */}
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <Select value={filterClass} onValueChange={setFilterClass}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="选择班级" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部班级</SelectItem>
+                      {allClasses.map(className => (
+                        <SelectItem key={className} value={className}>
+                          {className}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 姓名搜索 */}
+                <Input
+                  placeholder="搜索学生姓名..."
+                  value={searchName}
+                  onChange={(e) => setSearchName(e.target.value)}
+                  className="w-48"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {filteredStudents.map(student => {
+                  const status = getStudentFeedbackStatus(student.id!);
+                  
+                  return (
+                    <div
+                      key={student.id}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          {status.hasFeedback ? (
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                          ) : (
+                            <XCircle className="w-5 h-5 text-red-500" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium">{student.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {student.class} • 本周反馈 {status.feedbackCount} 次
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* 反馈状态提示 */}
+                        {status.pendingFeedback && (
+                          <span className="text-xs text-orange-600 mr-1">● 待保存</span>
+                        )}
+                        {status.hasFeedback && !status.pendingFeedback && (
+                          <span className="text-xs text-green-600 mr-1">● 已反馈</span>
+                        )}
+                        
+                        {/* 快速反馈按钮 */}
+                        {Object.entries(moodIcons).map(([mood, config]) => {
+                          const Icon = config.icon;
+                          const isActive = status.pendingFeedback?.mood === mood || 
+                                          (!status.pendingFeedback && status.lastFeedback?.mood === mood);
+                          
+                          return (
+                            <Button
+                              key={mood}
+                              size="sm"
+                              variant={isActive ? "default" : "outline"}
+                              onClick={() => handleLocalFeedback(student.id!, mood as any)}
+                              className={cn(
+                                "flex items-center gap-1 h-8 px-2",
+                                isActive && "shadow-md"
+                              )}
+                              title={`设置为${config.label}`}
+                            >
+                              <Icon className={cn("w-4 h-4", config.color)} />
+                            </Button>
+                          );
+                        })}
+
+                        {/* 备注按钮 */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 px-2"
+                          title="添加备注"
+                          onClick={() => {
+                            const currentNotes = status.pendingFeedback?.notes || status.lastFeedback?.notes || '';
+                            const notes = prompt('请输入反馈备注:', currentNotes);
+                            if (notes !== null) {
+                              const currentMood = status.pendingFeedback?.mood || status.lastFeedback?.mood || 'neutral';
+                              handleLocalFeedback(student.id!, currentMood, notes);
+                            }
+                          }}
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };
