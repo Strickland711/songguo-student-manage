@@ -71,7 +71,7 @@ const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
       className={cn(
         "flex flex-col items-center justify-center p-3 bg-background border rounded-md cursor-grab active:cursor-grabbing",
         "hover:border-primary/50 transition-colors text-sm min-w-0",
-        isDragging ? 'opacity-50' : ''
+        isDragging ? 'opacity-30 scale-95' : ''
       )}
     >
       <span className="font-medium truncate">{student.name}</span>
@@ -588,11 +588,10 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
           </div>
         </DndContext>
       )}
-          
           <DragOverlay>
             {draggedStudentId ? (
-              <div className="flex flex-col items-center justify-center p-3 bg-primary text-primary-foreground border rounded-md text-sm font-medium opacity-90">
-                {studentsWithScores.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}
+              <div className="flex flex-col items-center justify-center p-3 bg-primary text-primary-foreground border rounded-md text-sm font-medium shadow-lg opacity-95">
+                <span className="truncate">{studentsWithScores.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}</span>
               </div>
             ) : null}
           </DragOverlay>

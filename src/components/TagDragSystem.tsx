@@ -51,7 +51,7 @@ const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
       className={cn(
         "flex items-center justify-center p-2 bg-background border rounded-md cursor-grab active:cursor-grabbing",
         "hover:border-primary/50 transition-colors text-sm font-medium min-w-0",
-        isDragging ? 'opacity-50' : ''
+        isDragging ? 'opacity-30 scale-95' : ''
       )}
     >
       <span className="truncate">{student.name}</span>
@@ -330,8 +330,8 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
 
           <DragOverlay>
             {draggedStudentId ? (
-              <div className="flex items-center justify-center p-2 bg-primary text-primary-foreground border rounded-md text-sm font-medium opacity-90">
-                {localStudents.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}
+              <div className="flex items-center justify-center p-2 bg-primary text-primary-foreground border rounded-md text-sm font-medium shadow-lg opacity-95">
+                <span className="truncate">{localStudents.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}</span>
               </div>
             ) : null}
           </DragOverlay>
