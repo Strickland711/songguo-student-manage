@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -221,13 +221,19 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
   const [newRangeMin, setNewRangeMin] = useState<number>(0);
   const [newRangeMax, setNewRangeMax] = useState<number>(100);
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
+  // 本地分组指派，用于拖拽后的即时更新
+  const [assignments, setAssignments] = useState<Record<string, string | undefined>>({});
+  // 初始化分组指派自“亲密度”标签
+  useEffect(() => {
+    const initial: Record<string, string | undefined> = {};
+    students.forEach(s => {
+      initial[s.id!] = s['亲密度'];
+    });
+    setAssignments(initial);
+  }, [students]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 3, // 减少激活距离，提高响应速度
-      }
-    })
+    useSensor(PointerSensor)
   );
 
   // 计算学生的总分
@@ -247,29 +253,29 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
 
   // 按分数范围分组学生（初始分组，之后可自由调整）
   const groupedStudents = useMemo(() => {
-    const groups = new Map();
+    const groups = new Map<string, (Student & { totalScore: number })[]>();
     
-    // 首先从学生的自定义字段中获取已有分组信息
-    const studentsWithGroups = new Map();
+    // 优先根据本地分组指派渲染
+    const studentsWithGroups = new Map<string, (Student & { totalScore: number })[]>();
     studentsWithScores.forEach(student => {
-      const groupName = student['分组'] || null;
+      const groupName = assignments[student.id!];
       if (groupName) {
         if (!studentsWithGroups.has(groupName)) {
           studentsWithGroups.set(groupName, []);
         }
-        studentsWithGroups.get(groupName).push(student);
+        studentsWithGroups.get(groupName)!.push(student);
       }
     });
     
-    // 为已有分组设置学生
+    // 为每个分组准备学生
     scoreRanges.forEach(range => {
       if (studentsWithGroups.has(range.name)) {
-        groups.set(range.id, studentsWithGroups.get(range.name));
+        groups.set(range.id, studentsWithGroups.get(range.name)!);
       } else {
-        // 如果是新创建的分组，按分数筛选学生（仅未分组的学生）
-        const ungroupedStudents = studentsWithScores.filter(student => !student['分组']);
-        const studentsInRange = ungroupedStudents.filter(student => {
-          const score = student.totalScore;
+        // 新创建的分组：按分数筛选尚未被指派分组的学生
+        const ungroupedStudents = studentsWithScores.filter(s => !assignments[s.id!]);
+        const studentsInRange = ungroupedStudents.filter(s => {
+          const score = s.totalScore;
           return score >= range.minScore && (range.maxScore === Infinity || score <= range.maxScore);
         });
         groups.set(range.id, studentsInRange);
@@ -277,7 +283,7 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
     });
     
     return groups;
-  }, [studentsWithScores, scoreRanges]);
+  }, [studentsWithScores, scoreRanges, assignments]);
 
   // 更新表情分数设置
   const handleScoreChange = (mood: keyof ScoreSettings, value: number[]) => {
@@ -339,18 +345,18 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
         .from('custom_fields')
         .select('id')
         .eq('user_id', user.id)
-        .eq('name', '分组')
+        .eq('name', '亲密度')
         .single();
 
       let fieldId = existingField?.id;
 
-      // 如果不存在，创建"分组"自定义字段
+      // 如果不存在，创建"亲密度"自定义字段
       if (!fieldId) {
         const { data: newField, error: fieldError } = await supabase
           .from('custom_fields')
           .insert({
             user_id: user.id,
-            name: '分组',
+            name: '亲密度',
             type: 'text'
           })
           .select()
@@ -395,28 +401,36 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
     const draggedStudentId = active.id as string;
     const targetRangeId = over.id as string;
     
-    const draggedStudent = studentsWithScores.find(s => s.id === draggedStudentId);
     const targetRange = scoreRanges.find(r => r.id === targetRangeId);
-    
-    if (!draggedStudent || !targetRange) return;
+    if (!targetRange) return;
 
     // 检查是否需要更新
-    const currentGroup = draggedStudent['分组'];
+    const currentGroup = assignments[draggedStudentId];
     if (currentGroup === targetRange.name) return;
 
+    const previous = currentGroup;
+
+    // 乐观更新：本地先移动
+    setAssignments(prev => ({ ...prev, [draggedStudentId]: targetRange.name }));
+
     try {
-      // 异步保存分组信息
+      // 异步保存分组信息（标签名为“亲密度”）
       await saveGroupingAsTag(draggedStudentId, targetRange.name);
       
-      toast({
-        title: "分组更新成功",
-        description: `${draggedStudent.name} 已移动到 ${targetRange.name} 分组`,
-      });
+      const movedStudent = studentsWithScores.find(s => s.id === draggedStudentId);
+      if (movedStudent) {
+        toast({
+          title: '分组更新成功',
+          description: `${movedStudent.name} 已移动到 ${targetRange.name} 分组`,
+        });
+      }
     } catch (error) {
+      // 如果失败，恢复本地指派
+      setAssignments(prev => ({ ...prev, [draggedStudentId]: previous }));
       toast({
-        title: "分组更新失败",
-        description: "更新分组信息时发生错误，请重试",
-        variant: "destructive",
+        title: '分组更新失败',
+        description: '更新分组信息时发生错误，请重试',
+        variant: 'destructive',
       });
     }
   };

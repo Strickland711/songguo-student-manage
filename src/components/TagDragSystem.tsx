@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -168,13 +168,14 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
   const [selectedField, setSelectedField] = useState<CustomField | null>(customFields[0] || null);
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  // 本地学生副本：用于拖拽后的即时更新，再后台保存
+  const [localStudents, setLocalStudents] = useState<Student[]>(students);
+  useEffect(() => {
+    setLocalStudents(students);
+  }, [students]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 3, // 减少激活距离
-      }
-    })
+    useSensor(PointerSensor)
   );
 
   // 按选中字段的值分组学生
@@ -183,7 +184,7 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
 
     const valuesMap = new Map<string, Student[]>();
     
-    students.forEach(student => {
+    localStudents.forEach(student => {
       const value = student[selectedField.name] || '未设置';
       if (!valuesMap.has(value)) {
         valuesMap.set(value, []);
@@ -197,7 +198,7 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
       fieldValues: values,
       studentsMap: valuesMap
     };
-  }, [students, selectedField]);
+  }, [localStudents, selectedField]);
 
   // 切换分组展开/收起
   const toggleGroupExpansion = (fieldName: string, value: string) => {
@@ -234,7 +235,7 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
     
     if (!selectedField || targetFieldName !== selectedField.name) return;
     
-    const draggedStudent = students.find(s => s.id === draggedStudentId);
+    const draggedStudent = localStudents.find(s => s.id === draggedStudentId);
     if (!draggedStudent) return;
     
     // 检查是否需要更新
@@ -242,14 +243,15 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
     if (currentValue === targetValue) return;
     
     // 保存原始状态用于回退
-    const originalStudents = [...students];
+    const originalStudents = [...localStudents];
     
     // 乐观更新：先更新本地状态
-    const updatedStudents = students.map(student => 
+    const updatedStudents = localStudents.map(student => 
       student.id === draggedStudentId 
         ? { ...student, [selectedField.name]: targetValue === '未设置' ? undefined : targetValue }
         : student
     );
+    setLocalStudents(updatedStudents);
     
     try {
       // 异步保存到数据库
@@ -261,6 +263,7 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
       });
     } catch (error) {
       // 如果失败，恢复原始状态
+      setLocalStudents(originalStudents);
       await onUpdateStudents(originalStudents);
       toast({
         title: "更新失败",
@@ -328,7 +331,7 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
           <DragOverlay>
             {draggedStudentId ? (
               <div className="flex items-center justify-center p-2 bg-primary text-primary-foreground border rounded-md text-sm font-medium opacity-90">
-                {students.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}
+                {localStudents.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}
               </div>
             ) : null}
           </DragOverlay>
