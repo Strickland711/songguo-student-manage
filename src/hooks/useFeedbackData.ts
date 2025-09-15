@@ -23,32 +23,40 @@ export const useFeedbackData = () => {
   const { toast } = useToast();
   const [feedbackRecords, setFeedbackRecords] = useState<FeedbackWithStudent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [studentsMap, setStudentsMap] = useState<Map<string, any>>(new Map());
 
-  const loadFeedbackData = async () => {
+  const loadFeedbackData = async (limit?: number) => {
     if (!user) return;
 
     try {
       setLoading(true);
       
-      // 获取反馈记录
-      const { data: feedbackData, error: feedbackError } = await supabase
-        .from('feedback_records')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('feedback_date', { ascending: false });
-
-      if (feedbackError) throw feedbackError;
-
-      // 获取学生信息
+      // 先加载学生信息（通常数量不多，可以一次性加载）
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, name, class')
         .eq('user_id', user.id);
 
       if (studentsError) throw studentsError;
-
+      
       // 创建学生ID到学生信息的映射
       const studentMap = new Map(studentsData.map(student => [student.id, student]));
+      setStudentsMap(studentMap);
+
+      // 获取反馈记录 - 优化：限制加载数量，只加载最近的记录
+      let query = supabase
+        .from('feedback_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('feedback_date', { ascending: false });
+      
+      if (limit) {
+        query = query.limit(limit);
+      }
+
+      const { data: feedbackData, error: feedbackError } = await query;
+
+      if (feedbackError) throw feedbackError;
 
       // 合并数据
       const feedbackWithStudents: FeedbackWithStudent[] = feedbackData.map(record => {
@@ -161,7 +169,8 @@ export const useFeedbackData = () => {
 
   useEffect(() => {
     if (user) {
-      loadFeedbackData();
+      // 初始加载只加载最近 200 条记录，提高加载速度
+      loadFeedbackData(200);
     }
   }, [user]);
 

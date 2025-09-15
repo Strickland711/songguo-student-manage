@@ -627,13 +627,17 @@ interface FeedbackPlanningProps {
 }
 
 const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: FeedbackPlanningProps) => {
-  const [currentWeek, setCurrentWeek] = useState(new Date());
+  const [startDate, setStartDate] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [endDate, setEndDate] = useState<Date>(() => endOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [periodLength, setPeriodLength] = useState<number>(7); // 周期长度（天）
+  const [periodMode, setPeriodMode] = useState<'preset' | 'custom'>('preset');
   const [filterClass, setFilterClass] = useState<string>('all');
   const [searchName, setSearchName] = useState('');
   const [pendingFeedbacks, setPendingFeedbacks] = useState<Record<string, { mood: 'happy' | 'neutral' | 'sad', notes?: string }>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [weekPickerOpen, setWeekPickerOpen] = useState(false);
+  const [startDatePickerOpen, setStartDatePickerOpen] = useState(false);
+  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
   const [planningNotesDialogOpen, setPlanningNotesDialogOpen] = useState(false);
   const [planningCurrentNotesStudent, setPlanningCurrentNotesStudent] = useState<{ id: string, name: string } | null>(null);
   const [planningNotesInput, setPlanningNotesInput] = useState('');
@@ -645,9 +649,33 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
     sad: { icon: Frown, color: 'text-red-500', bgColor: 'bg-red-50 border-red-200', label: '沮丧' }
   };
 
-  // 获取当前周期的开始和结束日期
-  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+  // 预设周期选项
+  const periodPresets = [
+    { label: '1周', days: 7 },
+    { label: '2周', days: 14 },
+    { label: '1个月', days: 30 },
+    { label: '2个月', days: 60 },
+  ];
+
+  // 设置预设周期
+  const setPeriodPreset = (days: number) => {
+    const start = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const end = new Date(start.getTime() + (days - 1) * 24 * 60 * 60 * 1000);
+    setStartDate(start);
+    setEndDate(end);
+    setPeriodLength(days);
+    setPeriodMode('preset');
+  };
+
+  // 自定义日期范围
+  const handleCustomDateRange = (start: Date, end: Date) => {
+    setStartDate(start);
+    setEndDate(end);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    setPeriodLength(diffDays);
+    setPeriodMode('custom');
+  };
 
   // 获取所有班级用于筛选
   const allClasses = useMemo(() => {
@@ -665,23 +693,23 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
   }, [students, filterClass, searchName]);
 
   // 获取学生在当前周期内的反馈记录
-  const getStudentWeekFeedbacks = (studentId: string) => {
+  const getStudentPeriodFeedbacks = (studentId: string) => {
     return feedbackRecords.filter(record => {
       if (record.student_id !== studentId) return false;
       const recordDate = new Date(record.feedback_date);
-      return isWithinInterval(recordDate, { start: weekStart, end: weekEnd });
+      return isWithinInterval(recordDate, { start: startDate, end: endDate });
     });
   };
 
   // 获取学生的反馈状态
   const getStudentFeedbackStatus = (studentId: string) => {
-    const weekFeedbacks = getStudentWeekFeedbacks(studentId);
+    const periodFeedbacks = getStudentPeriodFeedbacks(studentId);
     const pendingFeedback = pendingFeedbacks[studentId];
     
     return {
-      feedbackCount: weekFeedbacks.length,
-      hasFeedback: weekFeedbacks.length > 0 || !!pendingFeedback,
-      lastFeedback: weekFeedbacks[0], // 最新的反馈
+      feedbackCount: periodFeedbacks.length,
+      hasFeedback: periodFeedbacks.length > 0 || !!pendingFeedback,
+      lastFeedback: periodFeedbacks[0], // 最新的反馈
       pendingFeedback
     };
   };
@@ -832,67 +860,97 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
             </CardHeader>
             <CardContent className="space-y-4">
               {/* 周期选择 */}
-              <div className="text-center">
-                <div className="flex items-center justify-between mb-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
-                  >
-                    ←
-                  </Button>
-                  <Popover open={weekPickerOpen} onOpenChange={setWeekPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" className="text-sm font-medium hover:bg-muted">
-                        {format(weekStart, 'MM/dd', { locale: zhCN })} - {format(weekEnd, 'MM/dd', { locale: zhCN })}
-                        <CalendarIcon className="w-4 h-4 ml-2" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="center">
-                      <Calendar
-                        mode="single"
-                        selected={currentWeek}
-                        onSelect={(date) => {
-                          if (date) {
-                            setCurrentWeek(date);
-                            setWeekPickerOpen(false);
-                          }
-                        }}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
-                  >
-                    →
-                  </Button>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">反馈周期</span>
+                  <span className="text-muted-foreground">{periodLength}天</span>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentWeek(new Date())}
-                  className="w-full"
-                >
-                  返回本周
-                </Button>
+                
+                {/* 预设周期 */}
+                <div className="grid grid-cols-2 gap-2">
+                  {periodPresets.map((preset) => (
+                    <Button
+                      key={preset.days}
+                      size="sm"
+                      variant={periodMode === 'preset' && periodLength === preset.days ? "default" : "outline"}
+                      onClick={() => setPeriodPreset(preset.days)}
+                      className="text-xs"
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* 自定义日期范围 */}
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">自定义日期范围</div>
+                  <div className="flex items-center gap-2">
+                    <Popover open={startDatePickerOpen} onOpenChange={setStartDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="text-xs">
+                          {format(startDate, 'MM/dd')}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="center">
+                        <Calendar
+                          mode="single"
+                          selected={startDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              handleCustomDateRange(date, endDate);
+                              setStartDatePickerOpen(false);
+                            }
+                          }}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <span className="text-xs text-muted-foreground">至</span>
+                    <Popover open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="text-xs">
+                          {format(endDate, 'MM/dd')}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="center">
+                        <Calendar
+                          mode="single"
+                          selected={endDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              handleCustomDateRange(startDate, date);
+                              setEndDatePickerOpen(false);
+                            }
+                          }}
+                          disabled={(date) => date < startDate}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="text-center">
+                    <span className="text-xs text-muted-foreground">
+                      {format(startDate, 'MM月dd日', { locale: zhCN })} - {format(endDate, 'MM月dd日', { locale: zhCN })}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* 班级统计 */}
               <div className="space-y-3">
                 <h4 className="font-medium text-sm">各班级反馈进度</h4>
                 {Array.from(classStats.entries()).map(([className, stats]) => (
-                  <div key={className} className="space-y-2">
+                  <button
+                    key={className}
+                    className="w-full p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors space-y-2"
+                    onClick={() => setFilterClass(className)}
+                  >
                     <div className="flex justify-between text-sm">
-                      <button
-                        className="hover:text-primary cursor-pointer transition-colors"
-                        onClick={() => setFilterClass(className)}
-                      >
+                      <span className="font-medium text-left hover:text-primary transition-colors">
                         {className}
-                      </button>
+                      </span>
                       <span className="text-muted-foreground">
                         {stats.feedbackedStudents}/{stats.totalStudents}
                       </span>
@@ -906,7 +964,7 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                     <div className="text-xs text-right text-muted-foreground">
                       {stats.percentage}%
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </CardContent>
@@ -970,7 +1028,7 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                         <div>
                           <div className="font-medium">{student.name}</div>
                           <div className="text-sm text-muted-foreground">
-                            {student.class} • 本周反馈 {status.feedbackCount} 次
+                            {student.class} • 本期反馈 {status.feedbackCount} 次
                           </div>
                         </div>
                       </div>
