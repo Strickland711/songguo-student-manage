@@ -7,14 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare } from 'lucide-react';
+import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare, Tag, TagIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
 import ClassSpace from './ClassSpace';
 
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
+import { useTagsData } from '@/hooks/useTagsData';
+import { cn } from '@/lib/utils';
 
 interface ColumnMapping {
   column: string;
@@ -42,10 +45,24 @@ const StudentDashboard = () => {
     updateStudentClass,
     updateClassNameForAllStudents
   } = useStudentData();
+  
+  const { 
+    tags, 
+    assignTagToStudent, 
+    removeTagFromStudent, 
+    getStudentTags, 
+    findOrCreateTagByName,
+    loading: tagsLoading 
+  } = useTagsData();
+  
   const [uploading, setUploading] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'date' | 'email'>('text');
+  
+  // 标签相关状态
+  const [tagPopoverOpen, setTagPopoverOpen] = useState<string | null>(null);
+  const [newTagName, setNewTagName] = useState('');
   
   // 新增状态用于列映射
   const [excelData, setExcelData] = useState<ExcelData | null>(null);
@@ -68,6 +85,39 @@ const StudentDashboard = () => {
   // 手动添加学生状态
   const [showAddStudentDialog, setShowAddStudentDialog] = useState(false);
   const [newStudent, setNewStudent] = useState<Partial<Student>>({ name: '', class: '' });
+  
+                  // 标签处理函数
+  const handleTagClick = async (studentId: string, tagId: string) => {
+    const studentTagIds = getStudentTags(studentId).map(st => st.tag_id);
+    
+    if (studentTagIds.includes(tagId)) {
+      // 移除标签
+      await removeTagFromStudent(studentId, tagId);
+    } else {
+      // 添加标签
+      await assignTagToStudent(studentId, tagId);
+    }
+  };
+
+  const handleAddNewTag = async (studentId: string) => {
+    if (!newTagName.trim()) return;
+    
+    try {
+      const tag = await findOrCreateTagByName(newTagName.trim());
+      if (tag) {
+        await assignTagToStudent(studentId, tag.id!);
+      }
+      setNewTagName('');
+      setTagPopoverOpen(null);
+    } catch (error) {
+      console.error('Failed to add tag:', error);
+    }
+  };
+
+  const getStudentTagsForDisplay = (studentId: string) => {
+    const studentTagIds = getStudentTags(studentId).map(st => st.tag_id);
+    return tags.filter(tag => studentTagIds.includes(tag.id!));
+  };
   
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -792,6 +842,7 @@ const StudentDashboard = () => {
                          <tr className="border-b">
                            <th className="text-left p-4 font-medium">姓名</th>
                            <th className="text-left p-4 font-medium">班级</th>
+                           <th className="text-left p-4 font-medium">标签</th>
                            {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
                              <th key={field.id} className="text-left p-4 font-medium">{field.name}</th>
                            ))}
@@ -809,6 +860,88 @@ const StudentDashboard = () => {
                            <tr key={student.id} className="border-b hover:bg-muted/50 transition-smooth">
                              <td className="p-4 font-medium">{student.name}</td>
                              <td className="p-4">{student.class}</td>
+                             <td className="p-4">
+                               <div className="flex flex-wrap gap-1">
+                                 {getStudentTagsForDisplay(student.id!).map(tag => (
+                                   <Badge
+                                     key={tag.id}
+                                     variant="secondary"
+                                     className="text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                     style={{ 
+                                       backgroundColor: tag.color + '20', 
+                                       color: tag.color, 
+                                       borderColor: tag.color + '40' 
+                                     }}
+                                     onClick={() => handleTagClick(student.id!, tag.id!)}
+                                   >
+                                     {tag.name}
+                                     <X className="w-3 h-3 ml-1" />
+                                   </Badge>
+                                 ))}
+                                 
+                                 <Popover 
+                                   open={tagPopoverOpen === student.id} 
+                                   onOpenChange={(open) => setTagPopoverOpen(open ? student.id! : null)}
+                                 >
+                                   <PopoverTrigger asChild>
+                                     <Button
+                                       size="sm"
+                                       variant="outline"
+                                       className="h-6 px-2 text-xs"
+                                     >
+                                       <Plus className="w-3 h-3" />
+                                     </Button>
+                                   </PopoverTrigger>
+                                   <PopoverContent className="w-80 p-3">
+                                     <div className="space-y-3">
+                                       <div className="space-y-2">
+                                         <Label className="text-sm font-medium">选择标签</Label>
+                                         <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                                           {tags.filter(tag => !getStudentTags(student.id!).map(st => st.tag_id).includes(tag.id!)).map(tag => (
+                                             <Badge
+                                               key={tag.id}
+                                               variant="outline"
+                                               className="text-xs cursor-pointer hover:bg-muted transition-colors"
+                                               style={{ 
+                                                 borderColor: tag.color,
+                                                 color: tag.color
+                                               }}
+                                               onClick={() => handleTagClick(student.id!, tag.id!)}
+                                             >
+                                               {tag.name}
+                                             </Badge>
+                                           ))}
+                                         </div>
+                                       </div>
+                                       
+                                       <div className="space-y-2">
+                                         <Label className="text-sm font-medium">创建新标签</Label>
+                                         <div className="flex gap-2">
+                                           <Input
+                                             value={newTagName}
+                                             onChange={(e) => setNewTagName(e.target.value)}
+                                             placeholder="输入标签名称"
+                                             className="text-sm"
+                                             onKeyDown={(e) => {
+                                               if (e.key === 'Enter') {
+                                                 handleAddNewTag(student.id!);
+                                               }
+                                             }}
+                                           />
+                                           <Button
+                                             size="sm"
+                                             onClick={() => handleAddNewTag(student.id!)}
+                                             disabled={!newTagName.trim()}
+                                           >
+                                             <Plus className="w-3 h-3" />
+                                           </Button>
+                                         </div>
+                                       </div>
+                                     </div>
+                                   </PopoverContent>
+                                 </Popover>
+                               </div>
+                             </td>
                              {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
                                <td key={field.id} className="p-4">{student[field.name] || '-'}</td>
                              ))}
