@@ -215,12 +215,7 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
     sad: 1
   });
   
-  const [scoreRanges, setScoreRanges] = useState<ScoreRange[]>([
-    { id: 'excellent', name: '优秀', minScore: 80, maxScore: Infinity, color: '#10b981' },
-    { id: 'good', name: '良好', minScore: 60, maxScore: 79, color: '#3b82f6' },
-    { id: 'average', name: '一般', minScore: 40, maxScore: 59, color: '#f59e0b' },
-    { id: 'poor', name: '较差', minScore: 0, maxScore: 39, color: '#ef4444' }
-  ]);
+  const [scoreRanges, setScoreRanges] = useState<ScoreRange[]>([]);
 
   const [newRangeName, setNewRangeName] = useState('');
   const [newRangeMin, setNewRangeMin] = useState<number>(0);
@@ -228,7 +223,11 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor)
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 3, // 减少激活距离，提高响应速度
+      }
+    })
   );
 
   // 计算学生的总分
@@ -246,16 +245,35 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
     });
   }, [students, feedbackRecords, scoreSettings]);
 
-  // 按分数范围分组学生
+  // 按分数范围分组学生（初始分组，之后可自由调整）
   const groupedStudents = useMemo(() => {
     const groups = new Map();
     
+    // 首先从学生的自定义字段中获取已有分组信息
+    const studentsWithGroups = new Map();
+    studentsWithScores.forEach(student => {
+      const groupName = student['分组'] || null;
+      if (groupName) {
+        if (!studentsWithGroups.has(groupName)) {
+          studentsWithGroups.set(groupName, []);
+        }
+        studentsWithGroups.get(groupName).push(student);
+      }
+    });
+    
+    // 为已有分组设置学生
     scoreRanges.forEach(range => {
-      const studentsInRange = studentsWithScores.filter(student => {
-        const score = student.totalScore;
-        return score >= range.minScore && (range.maxScore === Infinity || score <= range.maxScore);
-      });
-      groups.set(range.id, studentsInRange);
+      if (studentsWithGroups.has(range.name)) {
+        groups.set(range.id, studentsWithGroups.get(range.name));
+      } else {
+        // 如果是新创建的分组，按分数筛选学生（仅未分组的学生）
+        const ungroupedStudents = studentsWithScores.filter(student => !student['分组']);
+        const studentsInRange = ungroupedStudents.filter(student => {
+          const score = student.totalScore;
+          return score >= range.minScore && (range.maxScore === Infinity || score <= range.maxScore);
+        });
+        groups.set(range.id, studentsInRange);
+      }
     });
     
     return groups;
@@ -366,7 +384,7 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
     setDraggedStudentId(event.active.id);
   };
 
-  // 处理拖拽结束
+  // 处理拖拽结束 - 优化版本
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     
@@ -382,8 +400,12 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
     
     if (!draggedStudent || !targetRange) return;
 
+    // 检查是否需要更新
+    const currentGroup = draggedStudent['分组'];
+    if (currentGroup === targetRange.name) return;
+
     try {
-      // 保存分组信息
+      // 异步保存分组信息
       await saveGroupingAsTag(draggedStudentId, targetRange.name);
       
       toast({
@@ -519,43 +541,56 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
       </Card>
 
       {/* 学生分组显示 */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="space-y-4">
-          {scoreRanges.map(range => {
-            const studentsInRange = groupedStudents.get(range.id) || [];
-            return (
-              <DroppableGroup
-                key={range.id}
-                range={range}
-                students={studentsInRange}
-                onEditRange={handleEditRange}
-                onDeleteRange={handleDeleteRange}
-              />
-            );
-          })}
-        </div>
-        
-        <DragOverlay>
-          {draggedStudentId ? (
-            <div className="flex flex-col items-center justify-center p-3 bg-primary text-primary-foreground border rounded-md text-sm font-medium opacity-90">
-              {studentsWithScores.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}
+      {scoreRanges.length === 0 ? (
+        <Card className="shadow-card">
+          <CardContent className="py-12">
+            <div className="text-center">
+              <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-muted-foreground">暂无分组</h3>
+              <p className="text-sm text-muted-foreground mt-2">请先添加分组来管理学生</p>
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          </CardContent>
+        </Card>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="space-y-4">
+            {scoreRanges.map(range => {
+              const studentsInRange = groupedStudents.get(range.id) || [];
+              return (
+                <DroppableGroup
+                  key={range.id}
+                  range={range}
+                  students={studentsInRange}
+                  onEditRange={handleEditRange}
+                  onDeleteRange={handleDeleteRange}
+                />
+              );
+            })}
+          </div>
+        </DndContext>
+      )}
+          
+          <DragOverlay>
+            {draggedStudentId ? (
+              <div className="flex flex-col items-center justify-center p-3 bg-primary text-primary-foreground border rounded-md text-sm font-medium opacity-90">
+                {studentsWithScores.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}
+              </div>
+            ) : null}
+          </DragOverlay>
 
       {/* 使用说明 */}
       <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
         <h4 className="font-medium mb-2">使用说明：</h4>
         <ul className="space-y-1 text-xs">
-          <li>• 调整表情分数设置来改变分组计算方式</li>
+          <li>• 设置表情分数并添加分组来管理学生</li>
           <li>• 学生总分 = 所有反馈记录的分数之和</li>
-          <li>• 拖拽学生到不同分组可以手动调整分组</li>
+          <li>• 新建分组时会按分数自动筛选未分组学生</li>
+          <li>• 创建后可拖拽学生自由调整分组，不受分数限制</li>
           <li>• 分组信息会自动保存为学生标签</li>
         </ul>
       </div>

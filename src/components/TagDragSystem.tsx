@@ -170,7 +170,11 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const sensors = useSensors(
-    useSensor(PointerSensor)
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 3, // 减少激活距离
+      }
+    })
   );
 
   // 按选中字段的值分组学生
@@ -214,7 +218,7 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
     setDraggedStudentId(event.active.id);
   };
 
-  // 处理拖拽结束
+  // 处理拖拽结束 - 优化版本
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     
@@ -234,17 +238,21 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
     if (!draggedStudent) return;
     
     // 检查是否需要更新
-    if (draggedStudent[selectedField.name] === targetValue) return;
+    const currentValue = draggedStudent[selectedField.name];
+    if (currentValue === targetValue) return;
+    
+    // 保存原始状态用于回退
+    const originalStudents = [...students];
+    
+    // 乐观更新：先更新本地状态
+    const updatedStudents = students.map(student => 
+      student.id === draggedStudentId 
+        ? { ...student, [selectedField.name]: targetValue === '未设置' ? undefined : targetValue }
+        : student
+    );
     
     try {
-      // 乐观更新本地状态
-      const updatedStudents = students.map(student => 
-        student.id === draggedStudentId 
-          ? { ...student, [selectedField.name]: targetValue === '未设置' ? undefined : targetValue }
-          : student
-      );
-      
-      // 保存到数据库
+      // 异步保存到数据库
       await onUpdateStudents(updatedStudents);
       
       toast({
@@ -252,6 +260,8 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
         description: `${draggedStudent.name} 的 ${selectedField.name} 已更新为 ${targetValue}`,
       });
     } catch (error) {
+      // 如果失败，恢复原始状态
+      await onUpdateStudents(originalStudents);
       toast({
         title: "更新失败",
         description: "更新学生信息时发生错误，请重试",
