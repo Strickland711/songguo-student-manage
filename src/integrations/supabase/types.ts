@@ -14,6 +14,102 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance_records: {
+        Row: {
+          check_in_time: string | null
+          created_at: string
+          homework_completed: boolean | null
+          homework_notes: string | null
+          id: string
+          listening_notes: string | null
+          listening_score: number | null
+          session_id: string
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          check_in_time?: string | null
+          created_at?: string
+          homework_completed?: boolean | null
+          homework_notes?: string | null
+          id?: string
+          listening_notes?: string | null
+          listening_score?: number | null
+          session_id: string
+          status: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          check_in_time?: string | null
+          created_at?: string
+          homework_completed?: boolean | null
+          homework_notes?: string | null
+          id?: string
+          listening_notes?: string | null
+          listening_score?: number | null
+          session_id?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "classroom_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classroom_sessions: {
+        Row: {
+          class_name: string
+          created_at: string
+          end_time: string | null
+          id: string
+          lesson_date: string
+          lesson_title: string
+          notes: string | null
+          start_time: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          class_name: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          lesson_date?: string
+          lesson_title: string
+          notes?: string | null
+          start_time?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          class_name?: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          lesson_date?: string
+          lesson_title?: string
+          notes?: string | null
+          start_time?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       custom_fields: {
         Row: {
           created_at: string
@@ -262,6 +358,27 @@ export type Database = {
           },
         ]
       }
+      student_tags: {
+        Row: {
+          created_at: string
+          id: string
+          student_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          student_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          student_id?: string
+          tag_id?: string
+        }
+        Relationships: []
+      }
       students: {
         Row: {
           class: string
@@ -289,12 +406,49 @@ export type Database = {
         }
         Relationships: []
       }
+      tags: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      merge_tags: {
+        Args: {
+          keep_target_data?: boolean
+          source_tag_id: string
+          target_tag_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
