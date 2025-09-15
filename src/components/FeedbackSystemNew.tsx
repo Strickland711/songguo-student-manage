@@ -82,20 +82,15 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
     return dayFeedbacks.length;
   };
 
-  // 获取活跃度颜色
+  // 获取活跃度颜色 - GitHub风格单色由浅至深
   const getActivityColor = (count: number) => {
     if (count === 0) return '';
-    if (count <= 10) return 'bg-blue-500';
-    if (count <= 20) return 'bg-cyan-500';
-    if (count <= 30) return 'bg-green-500';
-    if (count <= 40) return 'bg-yellow-500';
-    if (count <= 50) return 'bg-orange-500';
-    if (count <= 60) return 'bg-red-500';
-    if (count <= 70) return 'bg-pink-500';
-    if (count <= 80) return 'bg-purple-500';
-    if (count <= 90) return 'bg-indigo-500';
-    if (count <= 100) return 'bg-violet-500';
-    return 'bg-slate-800'; // 100条以上固定颜色
+    if (count <= 5) return 'bg-primary/20';
+    if (count <= 10) return 'bg-primary/35';
+    if (count <= 20) return 'bg-primary/50';
+    if (count <= 35) return 'bg-primary/65';
+    if (count <= 50) return 'bg-primary/80';
+    return 'bg-primary'; // 50条以上最深色
   };
 
   // 获取学生的当天反馈（包括未保存的）
@@ -376,50 +371,30 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                   
                   <div className="mt-4 space-y-2">
                     <h4 className="font-medium text-sm">活跃度说明:</h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span>1-10条</span>
+                        <div className="w-3 h-3 bg-primary/20 rounded-full"></div>
+                        <span>1-5</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-cyan-500 rounded-full"></div>
-                        <span>11-20条</span>
+                        <div className="w-3 h-3 bg-primary/35 rounded-full"></div>
+                        <span>6-10</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                        <span>21-30条</span>
+                        <div className="w-3 h-3 bg-primary/50 rounded-full"></div>
+                        <span>11-20</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                        <span>31-40条</span>
+                        <div className="w-3 h-3 bg-primary/65 rounded-full"></div>
+                        <span>21-35</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                        <span>41-50条</span>
+                        <div className="w-3 h-3 bg-primary/80 rounded-full"></div>
+                        <span>36-50</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                        <span>51-60条</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-pink-500 rounded-full"></div>
-                        <span>61-70条</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                        <span>71-80条</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-indigo-500 rounded-full"></div>
-                        <span>81-90条</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-violet-500 rounded-full"></div>
-                        <span>91-100条</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-slate-800 rounded-full"></div>
-                        <span>100+条</span>
+                        <div className="w-3 h-3 bg-primary rounded-full"></div>
+                        <span>50+</span>
                       </div>
                     </div>
                   </div>
@@ -886,7 +861,7 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                 <Popover open={startDatePickerOpen} onOpenChange={setStartDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className="text-xs">
-                      {format(startDate, 'MM/dd')}
+                      {format(startDate, 'yyyy/MM/dd')}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="center">
@@ -899,6 +874,7 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                           setStartDatePickerOpen(false);
                         }
                       }}
+                      locale={zhCN}
                       initialFocus
                       className="p-3 pointer-events-auto"
                     />
@@ -908,7 +884,7 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                 <Popover open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className="text-xs">
-                      {format(endDate, 'MM/dd')}
+                      {format(endDate, 'yyyy/MM/dd')}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="center">
@@ -922,6 +898,7 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
                         }
                       }}
                       disabled={(date) => date < startDate}
+                      locale={zhCN}
                       initialFocus
                       className="p-3 pointer-events-auto"
                     />
@@ -930,7 +907,7 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
               </div>
               <div className="text-center">
                 <span className="text-xs text-muted-foreground">
-                  {format(startDate, 'MM月dd日', { locale: zhCN })} - {format(endDate, 'MM月dd日', { locale: zhCN })}
+                  {format(startDate, 'yyyy年MM月dd日', { locale: zhCN })} - {format(endDate, 'yyyy年MM月dd日', { locale: zhCN })}
                 </span>
               </div>
             </div>
