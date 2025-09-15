@@ -31,31 +31,34 @@ const FeedbackPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/')}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              返回主界面
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-primary">反馈系统</h1>
-              <p className="text-muted-foreground mt-1">管理学生家长反馈情况</p>
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                返回主界面
+              </Button>
+              <div>
+                <h1 className="text-xl font-semibold text-primary">反馈系统</h1>
+                <p className="text-sm text-muted-foreground">管理学生家长反馈情况</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              欢迎，{user.email}
-            </p>
+            <span className="text-sm text-foreground">
+              欢迎，{user.user_metadata?.full_name || user.email}
+            </span>
           </div>
         </div>
-        
+      </header>
+      
+      <main className="container mx-auto px-4 py-6">
         <FeedbackSystem students={students} />
-      </div>
+      </main>
     </div>
   );
 };
