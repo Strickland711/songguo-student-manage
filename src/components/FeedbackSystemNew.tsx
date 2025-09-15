@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus, Trash2, Edit } from 'lucide-react';
+import StudentSegmentation from './StudentSegmentation';
 import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
@@ -23,6 +24,7 @@ interface FeedbackSystemProps {
 
 const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const { feedbackRecords, loading, saveFeedbackRecord, getFeedbackByDate, deleteFeedbackRecord } = useFeedbackData();
+  const { saveStudents } = useStudentData();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterClass, setFilterClass] = useState<string>('all');
   const [searchName, setSearchName] = useState('');
@@ -82,15 +84,15 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
     return dayFeedbacks.length;
   };
 
-  // 获取活跃度颜色 - GitHub风格单色由浅至深
+  // 获取活跃度颜色 - 绿色渐变显示
   const getActivityColor = (count: number) => {
     if (count === 0) return '';
-    if (count <= 5) return 'bg-primary/20';
-    if (count <= 10) return 'bg-primary/35';
-    if (count <= 20) return 'bg-primary/50';
-    if (count <= 35) return 'bg-primary/65';
-    if (count <= 50) return 'bg-primary/80';
-    return 'bg-primary'; // 50条以上最深色
+    if (count <= 5) return 'bg-green-200';
+    if (count <= 10) return 'bg-green-300';
+    if (count <= 20) return 'bg-green-400';
+    if (count <= 35) return 'bg-green-500';
+    if (count <= 50) return 'bg-green-600';
+    return 'bg-green-700'; // 50条以上最深色
   };
 
   // 获取学生的当天反馈（包括未保存的）
@@ -290,7 +292,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
             <CalendarIcon className="w-4 h-4" />
             反馈日历
           </TabsTrigger>
-          <TabsTrigger value="segmentation" className="flex items-center gap-2" disabled>
+          <TabsTrigger value="segmentation" className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
             学员分层
           </TabsTrigger>
@@ -369,31 +371,31 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                     }}
                   />
                   
-                  <div className="mt-4 space-y-2">
+                    <div className="mt-4 space-y-2">
                     <h4 className="font-medium text-sm">活跃度说明:</h4>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-primary/20 rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-200 rounded-full"></div>
                         <span>1-5</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-primary/35 rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-300 rounded-full"></div>
                         <span>6-10</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-primary/50 rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-400 rounded-full"></div>
                         <span>11-20</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-primary/65 rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                         <span>21-35</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-primary/80 rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-600 rounded-full"></div>
                         <span>36-50</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-primary rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-700 rounded-full"></div>
                         <span>50+</span>
                       </div>
                     </div>
@@ -545,22 +547,11 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
 
         {/* 其他模块的占位内容 */}
         <TabsContent value="segmentation" className="space-y-6">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-accent" />
-                学员分层
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center h-64 text-muted-foreground">
-                <div className="text-center">
-                  <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>学员分层功能正在开发中...</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StudentSegmentation 
+            students={students} 
+            feedbackRecords={feedbackRecords}
+            onUpdateStudents={saveStudents}
+          />
         </TabsContent>
 
         <TabsContent value="planning" className="space-y-6">

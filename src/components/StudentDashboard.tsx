@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
 import ClassSpace from './ClassSpace';
+import TagDragSystem from './TagDragSystem';
 
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
 
@@ -914,6 +915,13 @@ const StudentDashboard = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Tag Drag Management */}
+            <TagDragSystem 
+              students={students}
+              customFields={customFields}
+              onUpdateStudents={saveStudents}
+            />
           </TabsContent>
         </Tabs>
       </div>
