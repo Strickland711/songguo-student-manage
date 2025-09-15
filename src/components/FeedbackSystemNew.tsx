@@ -848,243 +848,269 @@ const FeedbackPlanning = ({ students, feedbackRecords, saveFeedbackRecord }: Fee
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* 周期设置和统计 */}
-        <div className="lg:col-span-1">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-accent" />
-                反馈周期
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* 周期选择 */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">反馈周期</span>
-                  <span className="text-muted-foreground">{periodLength}天</span>
-                </div>
-                
-                {/* 预设周期 */}
-                <div className="grid grid-cols-2 gap-2">
-                  {periodPresets.map((preset) => (
-                    <Button
-                      key={preset.days}
-                      size="sm"
-                      variant={periodMode === 'preset' && periodLength === preset.days ? "default" : "outline"}
-                      onClick={() => setPeriodPreset(preset.days)}
-                      className="text-xs"
-                    >
-                      {preset.label}
-                    </Button>
-                  ))}
-                </div>
-
-                {/* 自定义日期范围 */}
-                <div className="space-y-2">
-                  <div className="text-xs text-muted-foreground">自定义日期范围</div>
-                  <div className="flex items-center gap-2">
-                    <Popover open={startDatePickerOpen} onOpenChange={setStartDatePickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="text-xs">
-                          {format(startDate, 'MM/dd')}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="center">
-                        <Calendar
-                          mode="single"
-                          selected={startDate}
-                          onSelect={(date) => {
-                            if (date) {
-                              handleCustomDateRange(date, endDate);
-                              setStartDatePickerOpen(false);
-                            }
-                          }}
-                          initialFocus
-                          className="p-3 pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <span className="text-xs text-muted-foreground">至</span>
-                    <Popover open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="text-xs">
-                          {format(endDate, 'MM/dd')}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="center">
-                        <Calendar
-                          mode="single"
-                          selected={endDate}
-                          onSelect={(date) => {
-                            if (date) {
-                              handleCustomDateRange(startDate, date);
-                              setEndDatePickerOpen(false);
-                            }
-                          }}
-                          disabled={(date) => date < startDate}
-                          initialFocus
-                          className="p-3 pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-xs text-muted-foreground">
-                      {format(startDate, 'MM月dd日', { locale: zhCN })} - {format(endDate, 'MM月dd日', { locale: zhCN })}
-                    </span>
-                  </div>
-                </div>
+      {/* 顶部反馈周期设置 */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-accent" />
+            反馈周期设置
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* 预设周期 */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">预设周期</span>
+                <span className="text-muted-foreground">{periodLength}天</span>
               </div>
-
-              {/* 班级统计 */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm">各班级反馈进度</h4>
-                {Array.from(classStats.entries()).map(([className, stats]) => (
-                  <button
-                    key={className}
-                    className="w-full p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors space-y-2"
-                    onClick={() => setFilterClass(className)}
+              <div className="grid grid-cols-2 gap-2">
+                {periodPresets.map((preset) => (
+                  <Button
+                    key={preset.days}
+                    size="sm"
+                    variant={periodMode === 'preset' && periodLength === preset.days ? "default" : "outline"}
+                    onClick={() => setPeriodPreset(preset.days)}
+                    className="text-xs"
                   >
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium text-left hover:text-primary transition-colors">
-                        {className}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {stats.feedbackedStudents}/{stats.totalStudents}
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-primary rounded-full h-2 transition-all"
-                        style={{ width: `${stats.percentage}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-right text-muted-foreground">
-                      {stats.percentage}%
-                    </div>
-                  </button>
+                    {preset.label}
+                  </Button>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
 
-        {/* 学生反馈列表 */}
-        <div className="lg:col-span-3">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-accent" />
-                学生反馈管理
-              </CardTitle>
-              <div className="flex items-center gap-4 mt-4">
-                {/* 班级筛选 */}
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-muted-foreground" />
-                  <Select value={filterClass} onValueChange={setFilterClass}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="选择班级" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部班级</SelectItem>
-                      {allClasses.map(className => (
-                        <SelectItem key={className} value={className}>
-                          {className}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* 姓名搜索 */}
-                <Input
-                  placeholder="搜索学生姓名..."
-                  value={searchName}
-                  onChange={(e) => setSearchName(e.target.value)}
-                  className="w-48"
-                />
+            {/* 自定义日期范围 */}
+            <div className="space-y-3">
+              <div className="text-sm font-medium">自定义日期范围</div>
+              <div className="flex items-center gap-2">
+                <Popover open={startDatePickerOpen} onOpenChange={setStartDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-xs">
+                      {format(startDate, 'MM/dd')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="center">
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={(date) => {
+                        if (date) {
+                          handleCustomDateRange(date, endDate);
+                          setStartDatePickerOpen(false);
+                        }
+                      }}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-xs text-muted-foreground">至</span>
+                <Popover open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-xs">
+                      {format(endDate, 'MM/dd')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="center">
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={(date) => {
+                        if (date) {
+                          handleCustomDateRange(startDate, date);
+                          setEndDatePickerOpen(false);
+                        }
+                      }}
+                      disabled={(date) => date < startDate}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {filteredStudents.map(student => {
-                  const status = getStudentFeedbackStatus(student.id!);
-                  
-                  return (
+              <div className="text-center">
+                <span className="text-xs text-muted-foreground">
+                  {format(startDate, 'MM月dd日', { locale: zhCN })} - {format(endDate, 'MM月dd日', { locale: zhCN })}
+                </span>
+              </div>
+            </div>
+
+            {/* 周期统计概览 */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium">周期统计</div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 bg-muted rounded text-center">
+                  <div className="font-medium text-lg">{students.length}</div>
+                  <div className="text-muted-foreground">总学生数</div>
+                </div>
+                <div className="p-2 bg-muted rounded text-center">
+                  <div className="font-medium text-lg text-green-600">
+                    {Array.from(classStats.values()).reduce((sum, stats) => sum + stats.feedbackedStudents, 0)}
+                  </div>
+                  <div className="text-muted-foreground">已反馈数</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 底部左右并排布局 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
+        {/* 左侧：各班级反馈进度 */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-accent" />
+              各班级反馈进度
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 h-[480px] overflow-y-auto pr-2">
+              {Array.from(classStats.entries()).map(([className, stats]) => (
+                <button
+                  key={className}
+                  className="w-full p-4 rounded-lg border bg-background hover:bg-muted/50 transition-colors space-y-3"
+                  onClick={() => setFilterClass(className)}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-left hover:text-primary transition-colors">
+                      {className}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {stats.feedbackedStudents}/{stats.totalStudents}
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-3">
                     <div
-                      key={student.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          {status.hasFeedback ? (
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-500" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-medium">{student.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {student.class} • 本期反馈 {status.feedbackCount} 次
-                          </div>
-                        </div>
-                      </div>
+                      className="bg-gradient-to-r from-primary to-primary/80 rounded-full h-3 transition-all duration-300"
+                      style={{ width: `${stats.percentage}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">进度</span>
+                    <span className="font-medium text-primary">
+                      {stats.percentage}%
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
+        {/* 右侧：学生反馈管理 */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-accent" />
+              学生反馈管理
+            </CardTitle>
+            <div className="flex items-center gap-4 mt-4">
+              {/* 班级筛选 */}
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <Select value={filterClass} onValueChange={setFilterClass}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="选择班级" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部班级</SelectItem>
+                    {allClasses.map(className => (
+                      <SelectItem key={className} value={className}>
+                        {className}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 姓名搜索 */}
+              <Input
+                placeholder="搜索学生姓名..."
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                className="w-48"
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 h-[380px] overflow-y-auto pr-2">
+              {filteredStudents.map(student => {
+                const status = getStudentFeedbackStatus(student.id!);
+                
+                return (
+                  <div
+                    key={student.id}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
-                        {/* 反馈状态提示 */}
-                        {status.pendingFeedback && (
-                          <span className="text-xs text-orange-600 mr-1">● 待保存</span>
+                        {status.hasFeedback ? (
+                          <CheckCircle className="w-5 h-5 text-green-500" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-red-500" />
                         )}
-                        {status.hasFeedback && !status.pendingFeedback && (
-                          <span className="text-xs text-green-600 mr-1">● 已反馈</span>
-                        )}
-                        
-                        {/* 快速反馈按钮 */}
-                        {Object.entries(moodIcons).map(([mood, config]) => {
-                          const Icon = config.icon;
-                          const isActive = status.pendingFeedback?.mood === mood || 
-                                          (!status.pendingFeedback && status.lastFeedback?.mood === mood);
-                          
-                          return (
-                            <Button
-                              key={mood}
-                              size="sm"
-                              variant={isActive ? "default" : "outline"}
-                              onClick={() => handleLocalFeedback(student.id!, mood as any)}
-                              className={cn(
-                                "flex items-center gap-1 h-8 px-2",
-                                isActive && "shadow-md"
-                              )}
-                              title={`设置为${config.label}`}
-                            >
-                              <Icon className={cn("w-4 h-4", config.color)} />
-                            </Button>
-                          );
-                        })}
-
-                        {/* 备注按钮 */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 px-2"
-                          title="添加备注"
-                          onClick={() => openPlanningNotesDialog({ id: student.id!, name: student.name })}
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          {(status.pendingFeedback?.notes || status.lastFeedback?.notes) && 
-                            <div className="w-1 h-1 bg-primary rounded-full ml-1" />}
-                        </Button>
+                      </div>
+                      <div>
+                        <div className="font-medium">{student.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {student.class} • 本期反馈 {status.feedbackCount} 次
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* 反馈状态提示 */}
+                      {status.pendingFeedback && (
+                        <span className="text-xs text-orange-600 mr-1">● 待保存</span>
+                      )}
+                      {status.hasFeedback && !status.pendingFeedback && (
+                        <span className="text-xs text-green-600 mr-1">● 已反馈</span>
+                      )}
+                      
+                      {/* 快速反馈按钮 */}
+                      {Object.entries(moodIcons).map(([mood, config]) => {
+                        const Icon = config.icon;
+                        const isActive = status.pendingFeedback?.mood === mood || 
+                                        (!status.pendingFeedback && status.lastFeedback?.mood === mood);
+                        
+                        return (
+                          <Button
+                            key={mood}
+                            size="sm"
+                            variant={isActive ? "default" : "outline"}
+                            onClick={() => handleLocalFeedback(student.id!, mood as any)}
+                            className={cn(
+                              "flex items-center gap-1 h-8 px-2",
+                              isActive && "shadow-md"
+                            )}
+                            title={`设置为${config.label}`}
+                          >
+                            <Icon className={cn("w-4 h-4", config.color)} />
+                          </Button>
+                        );
+                      })}
+
+                      {/* 备注按钮 */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2"
+                        title="添加备注"
+                        onClick={() => openPlanningNotesDialog({ id: student.id!, name: student.name })}
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        {(status.pendingFeedback?.notes || status.lastFeedback?.notes) && 
+                          <div className="w-1 h-1 bg-primary rounded-full ml-1" />}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* 备注编辑对话框 */}
