@@ -12,14 +12,13 @@ import { Student } from '@/hooks/useStudentData';
 import { FeedbackRecord } from '@/hooks/useFeedbackData';
 import {
   DndContext,
-  closestCorners,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
   useDroppable,
   useDraggable,
-  DragOverEvent,
   DragOverlay,
 } from '@dnd-kit/core';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,12 +44,21 @@ interface ScoreRange {
   color: string;
 }
 
+const rangesOverlap = (
+  a: Pick<ScoreRange, 'minScore' | 'maxScore'>,
+  b: Pick<ScoreRange, 'minScore' | 'maxScore'>
+) => {
+  const aMax = a.maxScore === Infinity ? Number.POSITIVE_INFINITY : a.maxScore;
+  const bMax = b.maxScore === Infinity ? Number.POSITIVE_INFINITY : b.maxScore;
+  return a.minScore <= bMax && b.minScore <= aMax;
+};
+
 interface DraggableStudentProps {
   student: Student & { totalScore: number };
-  isDragging?: boolean;
 }
 
-const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
+
+const DraggableStudent = ({ student }: DraggableStudentProps) => {
   const {
     attributes,
     listeners,
@@ -70,8 +78,7 @@ const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
       {...listeners}
       className={cn(
         "flex flex-col items-center justify-center p-3 bg-background border rounded-md cursor-grab active:cursor-grabbing",
-        "hover:border-primary/50 transition-colors text-sm min-w-0",
-        isDragging ? 'opacity-30 scale-95' : ''
+        "hover:border-primary/50 transition-colors text-sm min-w-0"
       )}
     >
       <span className="font-medium truncate">{student.name}</span>
@@ -296,16 +303,36 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
   // 添加新分组
   const handleAddRange = () => {
     if (!newRangeName.trim()) return;
-    
-    const newRange: ScoreRange = {
+
+    if (newRangeMax < newRangeMin) {
+      toast({
+        title: '无效的分数范围',
+        description: '最大分数必须大于或等于最小分数',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const candidate: ScoreRange = {
       id: `range_${Date.now()}`,
       name: newRangeName.trim(),
       minScore: newRangeMin,
       maxScore: newRangeMax === 999 ? Infinity : newRangeMax,
       color: `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`
     };
-    
-    setScoreRanges(prev => [...prev, newRange]);
+
+    // 检查是否与现有分组的分数范围重叠
+    const overlapping = scoreRanges.find(r => rangesOverlap(candidate, r));
+    if (overlapping) {
+      toast({
+        title: '分组范围重叠',
+        description: `新分组与【${overlapping.name}】的分数范围重叠，请调整后再添加`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setScoreRanges(prev => [...prev, candidate]);
     setNewRangeName('');
     setNewRangeMin(0);
     setNewRangeMax(100);
@@ -313,11 +340,34 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
 
   // 编辑分组
   const handleEditRange = (updatedRange: ScoreRange) => {
-    setScoreRanges(prev => 
-      prev.map(range => 
-        range.id === updatedRange.id ? updatedRange : range
-      )
-    );
+    const original = scoreRanges.find(r => r.id === updatedRange.id);
+    if (!original) return;
+
+    // 校验与其他分组范围是否重叠
+    const hasOverlap = scoreRanges.some(r => r.id !== updatedRange.id && rangesOverlap(updatedRange, r));
+    if (hasOverlap) {
+      toast({
+        title: '分组范围重叠',
+        description: '该分组的分数范围与其他分组存在重叠，请调整后再保存',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // 如名称变更，同步更新本地指派，避免学生“丢组”导致列表错乱
+    if (original.name !== updatedRange.name) {
+      setAssignments(prev => {
+        const next = { ...prev };
+        Object.keys(prev).forEach(sid => {
+          if (prev[sid] === original.name) {
+            next[sid] = updatedRange.name;
+          }
+        });
+        return next;
+      });
+    }
+
+    setScoreRanges(prev => prev.map(range => (range.id === updatedRange.id ? updatedRange : range)));
   };
 
   // 删除分组
@@ -568,7 +618,7 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={rectIntersection}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -586,15 +636,20 @@ const StudentSegmentation = ({ students, feedbackRecords, onUpdateStudents }: St
               );
             })}
           </div>
-        </DndContext>
-      )}
-          <DragOverlay>
+
+          <DragOverlay dropAnimation={null}>
             {draggedStudentId ? (
-              <div className="flex flex-col items-center justify-center p-3 bg-primary text-primary-foreground border rounded-md text-sm font-medium shadow-lg opacity-95">
-                <span className="truncate">{studentsWithScores.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}</span>
+              <div className="flex flex-col items-center justify-center p-3 bg-background border rounded-md text-sm min-w-0">
+                <span className="font-medium truncate">{studentsWithScores.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}</span>
+                <span className="text-xs text-muted-foreground">{studentsWithScores.find(s => s.id === draggedStudentId)?.class}</span>
+                <Badge variant="outline" className="text-xs mt-1">
+                  {studentsWithScores.find(s => s.id === draggedStudentId)?.totalScore} 分
+                </Badge>
               </div>
             ) : null}
           </DragOverlay>
+        </DndContext>
+      )}
 
       {/* 使用说明 */}
       <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">

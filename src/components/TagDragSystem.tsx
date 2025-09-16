@@ -9,14 +9,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Student, CustomField } from '@/hooks/useStudentData';
 import {
   DndContext,
-  closestCorners,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
   useDroppable,
   useDraggable,
-  DragOverlay,
 } from '@dnd-kit/core';
 
 interface TagDragSystemProps {
@@ -27,10 +26,9 @@ interface TagDragSystemProps {
 
 interface DraggableStudentProps {
   student: Student;
-  isDragging?: boolean;
 }
 
-const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
+const DraggableStudent = ({ student }: DraggableStudentProps) => {
   const {
     attributes,
     listeners,
@@ -50,8 +48,7 @@ const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
       {...listeners}
       className={cn(
         "flex items-center justify-center p-2 bg-background border rounded-md cursor-grab active:cursor-grabbing",
-        "hover:border-primary/50 transition-colors text-sm font-medium min-w-0",
-        isDragging ? 'opacity-30 scale-95' : ''
+        "hover:border-primary/50 transition-colors text-sm font-medium min-w-0"
       )}
     >
       <span className="truncate">{student.name}</span>
@@ -316,7 +313,7 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
       {selectedField && (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={rectIntersection}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -327,14 +324,6 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
             onToggleExpand={toggleGroupExpansion}
             expandedGroups={expandedGroups}
           />
-
-          <DragOverlay>
-            {draggedStudentId ? (
-              <div className="flex items-center justify-center p-2 bg-primary text-primary-foreground border rounded-md text-sm font-medium shadow-lg opacity-95">
-                <span className="truncate">{localStudents.find(s => s.id === draggedStudentId)?.name || '拖拽中...'}</span>
-              </div>
-            ) : null}
-          </DragOverlay>
         </DndContext>
       )}
 
