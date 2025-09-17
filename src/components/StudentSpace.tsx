@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, User, BookOpen, MessageSquare, Target, Star, TrendingUp } from 'lucide-react';
+import { X, User, BookOpen, MessageSquare, Target, Star, TrendingUp, Trees } from 'lucide-react';
 import { Student } from '@/hooks/useStudentData';
 import { useFeedbackData } from '@/hooks/useFeedbackData';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import PineconeView from './PineconeView';
 
 interface StudentSpaceProps {
   student: Student;
@@ -45,6 +46,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
   const [examResults, setExamResults] = useState<ExamResult[]>([]);
   const [scoringRecords, setScoringRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'graph' | 'tree'>('graph');
   
   const { feedbackRecords, getFeedbackByStudent } = useFeedbackData();
 
@@ -191,23 +193,32 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
     setNodes(newNodes);
   }, [loading, examResults, scoringRecords, student, getFeedbackByStudent]);
 
-  // Animation loop
+  // Animation loop with useRef for nodes to avoid dependency issues
+  const nodesRef = useRef<FloatingNode[]>([]);
+  
   useEffect(() => {
-    if (!canvasRef.current) return;
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    if (!canvasRef.current || nodes.length === 0) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const animate = () => {
+      const currentNodes = nodesRef.current;
+      if (currentNodes.length === 0) return;
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Draw connections from center to other nodes
-      const centerNode = nodes.find(n => n.id === 'student-info');
+      const centerNode = currentNodes.find(n => n.id === 'student-info');
       if (centerNode) {
-        nodes.forEach(node => {
+        currentNodes.forEach(node => {
           if (node.id !== 'student-info') {
-            ctx.strokeStyle = 'hsl(var(--border))';
+            ctx.strokeStyle = 'hsl(210 40% 80%)';
             ctx.lineWidth = 1;
             ctx.globalAlpha = 0.3;
             ctx.beginPath();
@@ -219,60 +230,61 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
       }
 
       // Update and draw nodes
-      setNodes(prevNodes => 
-        prevNodes.map(node => {
-          // Update position
-          let newX = node.x + node.vx;
-          let newY = node.y + node.vy;
+      const updatedNodes = currentNodes.map(node => {
+        // Update position
+        let newX = node.x + node.vx;
+        let newY = node.y + node.vy;
 
-          // Boundary collision
-          if (newX < node.size / 2 || newX > canvas.width - node.size / 2) {
-            node.vx *= -1;
-            newX = Math.max(node.size / 2, Math.min(canvas.width - node.size / 2, newX));
-          }
-          if (newY < node.size / 2 || newY > canvas.height - node.size / 2) {
-            node.vy *= -1;
-            newY = Math.max(node.size / 2, Math.min(canvas.height - node.size / 2, newY));
-          }
+        // Boundary collision
+        if (newX < node.size / 2 || newX > canvas.width - node.size / 2) {
+          node.vx *= -1;
+          newX = Math.max(node.size / 2, Math.min(canvas.width - node.size / 2, newX));
+        }
+        if (newY < node.size / 2 || newY > canvas.height - node.size / 2) {
+          node.vy *= -1;
+          newY = Math.max(node.size / 2, Math.min(canvas.height - node.size / 2, newY));
+        }
 
-          // Gentle attraction to original position for center node
-          if (node.id === 'student-info') {
-            const targetX = 400;
-            const targetY = 300;
-            const dx = targetX - newX;
-            const dy = targetY - newY;
-            newX += dx * 0.01;
-            newY += dy * 0.01;
-          }
+        // Gentle attraction to original position for center node
+        if (node.id === 'student-info') {
+          const targetX = 400;
+          const targetY = 300;
+          const dx = targetX - newX;
+          const dy = targetY - newY;
+          newX += dx * 0.01;
+          newY += dy * 0.01;
+        }
 
-          // Draw node
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = node.color;
-          ctx.beginPath();
-          ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
-          ctx.fill();
+        // Draw node
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = node.color;
+        ctx.beginPath();
+        ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
+        ctx.fill();
 
-          // Draw border
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-          ctx.lineWidth = 2;
-          ctx.stroke();
+        // Draw border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
-          // Draw text
-          ctx.fillStyle = 'white';
-          ctx.font = `bold ${Math.max(10, node.size / 8)}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          
-          const maxWidth = node.size - 10;
-          const title = node.title.length > 8 ? node.title.substring(0, 8) + '...' : node.title;
-          ctx.fillText(title, newX, newY - 5);
-          
-          ctx.font = `${Math.max(8, node.size / 10)}px sans-serif`;
-          ctx.fillText(node.content, newX, newY + 10);
+        // Draw text
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${Math.max(10, node.size / 8)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const title = node.title.length > 8 ? node.title.substring(0, 8) + '...' : node.title;
+        ctx.fillText(title, newX, newY - 5);
+        
+        ctx.font = `${Math.max(8, node.size / 10)}px sans-serif`;
+        ctx.fillText(node.content, newX, newY + 10);
 
-          return { ...node, x: newX, y: newY };
-        })
-      );
+        return { ...node, x: newX, y: newY };
+      });
+
+      // Update nodes ref for next frame
+      nodesRef.current = updatedNodes;
+      setNodes(updatedNodes);
 
       animationRef.current = requestAnimationFrame(animate);
     };
@@ -284,7 +296,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [nodes.length]);
+  }, [nodes.length > 0]);
 
   if (loading) {
     return (
@@ -331,20 +343,39 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
 
         <div className="flex-1 overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-3 h-full">
-            {/* Floating Animation Canvas */}
+            {/* Main View Area */}
             <div className="lg:col-span-2 relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-              <canvas 
-                ref={canvasRef}
-                width={800}
-                height={600}
-                className="w-full h-full"
-              />
-              <div className="absolute top-4 left-4">
-                <Badge variant="secondary" className="bg-white/80 text-foreground">
-                  <Star className="w-3 h-3 mr-1" />
-                  关系图视图
-                </Badge>
-              </div>
+              {viewMode === 'graph' ? (
+                <>
+                  <canvas 
+                    ref={canvasRef}
+                    width={800}
+                    height={600}
+                    className="w-full h-full"
+                  />
+                  <div className="absolute top-4 left-4 flex gap-2">
+                    <Badge variant="secondary" className="bg-white/80 text-foreground">
+                      <Star className="w-3 h-3 mr-1" />
+                      关系图视图
+                    </Badge>
+                    <button
+                      onClick={() => setViewMode('tree')}
+                      className="px-3 py-1 bg-white/80 hover:bg-white/90 rounded-full text-sm font-medium transition-colors"
+                    >
+                      <Trees className="w-3 h-3 mr-1 inline" />
+                      松果视图
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <PineconeView 
+                  student={student}
+                  examResults={examResults}
+                  scoringRecords={scoringRecords}
+                  studentFeedback={getFeedbackByStudent(student.id || '')}
+                  onSwitchView={() => setViewMode('graph')}
+                />
+              )}
             </div>
 
             {/* Statistics Panel */}
