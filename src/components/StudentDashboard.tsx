@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
 import ClassSpace from './ClassSpace';
 import TagDragSystem from './TagDragSystem';
+import StudentSpace from './StudentSpace';
 
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
 
@@ -65,7 +66,10 @@ const StudentDashboard = () => {
   
   // 登分系统状态
   const [showScoringSystem, setShowScoringSystem] = useState(false);
-  
+
+  // 学生空间状态
+  const [selectedStudentForSpace, setSelectedStudentForSpace] = useState<Student | null>(null);
+
   // 手动添加学生状态
   const [showAddStudentDialog, setShowAddStudentDialog] = useState(false);
   const [newStudent, setNewStudent] = useState<Partial<Student>>({ name: '', class: '' });
@@ -401,6 +405,16 @@ const StudentDashboard = () => {
   // 如果显示登分系统，渲染登分系统组件
   if (showScoringSystem) {
     return <ScoringSystem students={students} onClose={() => setShowScoringSystem(false)} />;
+  }
+
+  // 如果显示学生空间，渲染学生空间组件
+  if (selectedStudentForSpace) {
+    return (
+      <StudentSpace 
+        student={selectedStudentForSpace} 
+        onClose={() => setSelectedStudentForSpace(null)} 
+      />
+    );
   }
 
   // 显示加载状态
@@ -806,33 +820,44 @@ const StudentDashboard = () => {
                             const fieldValue = student[filterField];
                             return fieldValue && fieldValue.toString().toLowerCase().includes(filterValue.toLowerCase());
                           })
-                          .map(student => (
-                           <tr key={student.id} className="border-b hover:bg-muted/50 transition-smooth">
-                             <td className="p-4 font-medium">{student.name}</td>
-                             <td className="p-4">{student.class}</td>
-                             {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
-                               <td key={field.id} className="p-4">{student[field.name] || '-'}</td>
-                             ))}
-                             <td className="p-4">
-                               <div className="flex gap-2">
-                                 <Button
-                                   size="sm"
-                                   variant="outline"
-                                   onClick={() => setEditingStudent(student)}
-                                 >
-                                   <Edit className="w-4 h-4" />
-                                 </Button>
-                                 <Button
-                                   size="sm"
-                                   variant="destructive"
-                                   onClick={() => deleteStudent(student.id)}
-                                 >
-                                   <Trash2 className="w-4 h-4" />
-                                 </Button>
-                               </div>
-                             </td>
-                           </tr>
-                        ))}
+                           .map(student => (
+                            <tr 
+                              key={student.id} 
+                              className="border-b hover:bg-muted/50 transition-smooth cursor-pointer"
+                              onDoubleClick={() => setSelectedStudentForSpace(student)}
+                              title="双击进入学生空间"
+                            >
+                              <td className="p-4 font-medium">{student.name}</td>
+                              <td className="p-4">{student.class}</td>
+                              {customFields.filter(field => visibleFields.includes(field.name)).map(field => (
+                                <td key={field.id} className="p-4">{student[field.name] || '-'}</td>
+                              ))}
+                              <td className="p-4">
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingStudent(student);
+                                    }}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteStudent(student.id);
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                         ))}
                       </tbody>
                     </table>
                   </div>
