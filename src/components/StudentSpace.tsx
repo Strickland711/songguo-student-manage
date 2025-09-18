@@ -8,7 +8,7 @@ import { useFeedbackData } from '@/hooks/useFeedbackData';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import PineconeView from './PineconeView';
+
 
 interface StudentSpaceProps {
   student: Student;
@@ -46,7 +46,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
   const [examResults, setExamResults] = useState<ExamResult[]>([]);
   const [scoringRecords, setScoringRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'graph' | 'tree'>('graph');
+  
   
   const { feedbackRecords, getFeedbackByStudent } = useFeedbackData();
 
@@ -109,94 +109,108 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
     loadStudentData();
   }, [user, student.id]);
 
-  // Create floating nodes with beautiful tag system
+  // Create individual floating balls for each tag with collision detection
   useEffect(() => {
     if (loading) return;
 
     const studentFeedback = getFeedbackByStudent(student.id || '');
     const newNodes: FloatingNode[] = [];
+    
+    // Collect all tags/data points
+    const allTags: Array<{
+      id: string;
+      title: string;
+      content: string;
+      color: string;
+      type: 'info' | 'exam' | 'feedback' | 'tag';
+    }> = [];
 
-    // Student basic info node (center) - larger and more prominent
-    newNodes.push({
+    // Student basic info
+    allTags.push({
       id: 'student-info',
-      x: 400,
-      y: 300,
-      vx: 0,
-      vy: 0,
-      type: 'info',
       title: student.name,
       content: `班级: ${student.class}`,
       color: 'hsl(223, 47%, 11%)',
-      size: 100
+      type: 'info'
     });
 
-    // Create tag-based floating balls with more organic positioning
-    let nodeIndex = 0;
-
-    // Exam results nodes - green cluster
-    examResults.slice(0, 4).forEach((exam, index) => {
-      const clusterAngle = Math.PI * 0.3; // Upper right
-      const spreadRadius = 80 + index * 30;
-      const angle = clusterAngle + (index - 1.5) * 0.4;
-      
-        newNodes.push({
-          id: `exam-${exam.id}`,
-          x: 400 + Math.cos(angle) * spreadRadius,
-          y: 300 + Math.sin(angle) * spreadRadius,
-          vx: (Math.random() - 0.5) * 0.3,
-          vy: (Math.random() - 0.5) * 0.3,
-          type: 'exam',
-          title: exam.exam_name.length > 8 ? exam.exam_name.substring(0, 6) + '..' : exam.exam_name,
-          content: `${exam.total_score.toFixed(1)}分`,
-          color: exam.total_score >= 80 ? 'hsl(142, 71%, 45%)' : 
-                 exam.total_score >= 60 ? 'hsl(38, 92%, 50%)' : 'hsl(0, 84%, 60%)',
-          size: 65
-        });
-    });
-
-    // Feedback nodes - mood-based cluster
-    studentFeedback.slice(0, 4).forEach((feedback, index) => {
-      const clusterAngle = Math.PI * 1.7; // Lower left
-      const spreadRadius = 90 + index * 25;
-      const angle = clusterAngle + (index - 1.5) * 0.3;
-      
-      const moodColors = {
-        'happy': 'hsl(142 71% 45%)',
-        'neutral': 'hsl(38 92% 50%)', 
-        'sad': 'hsl(0 84% 60%)'
-      };
-      
-      newNodes.push({
-        id: `feedback-${feedback.id}`,
-        x: 400 + Math.cos(angle) * spreadRadius,
-        y: 300 + Math.sin(angle) * spreadRadius,
-        vx: (Math.random() - 0.5) * 0.25,
-        vy: (Math.random() - 0.5) * 0.25,
-        type: 'feedback',
-        title: '反馈',
-        content: feedback.mood,
-        color: moodColors[feedback.mood as keyof typeof moodColors] || 'hsl(var(--muted))',
-        size: 55
+    // Exam results
+    examResults.forEach((exam) => {
+      allTags.push({
+        id: `exam-${exam.id}`,
+        title: exam.exam_name.length > 10 ? exam.exam_name.substring(0, 8) + '..' : exam.exam_name,
+        content: `${exam.total_score.toFixed(1)}分`,
+        color: exam.total_score >= 80 ? 'hsl(142, 71%, 45%)' : 
+               exam.total_score >= 60 ? 'hsl(38, 92%, 50%)' : 'hsl(0, 84%, 60%)',
+        type: 'exam'
       });
     });
 
-    // Scoring records nodes - purple cluster
-    scoringRecords.slice(0, 4).forEach((record, index) => {
-      const clusterAngle = Math.PI * 0.8; // Upper left
-      const spreadRadius = 85 + index * 35;
-      const angle = clusterAngle + (index - 1.5) * 0.35;
+    // Feedback
+    studentFeedback.forEach((feedback) => {
+      const moodColors = {
+        'happy': 'hsl(142, 71%, 45%)',
+        'neutral': 'hsl(38, 92%, 50%)', 
+        'sad': 'hsl(0, 84%, 60%)'
+      };
+      
+      allTags.push({
+        id: `feedback-${feedback.id}`,
+        title: '反馈',
+        content: feedback.mood,
+        color: moodColors[feedback.mood as keyof typeof moodColors] || 'hsl(220, 13%, 91%)',
+        type: 'feedback'
+      });
+    });
+
+    // Scoring records
+    scoringRecords.forEach((record) => {
+      allTags.push({
+        id: `scoring-${record.id}`,
+        title: record.category.length > 8 ? record.category.substring(0, 6) + '..' : record.category,
+        content: `${record.score}분`,
+        color: 'hsl(262, 83%, 58%)',
+        type: 'tag'
+      });
+    });
+
+    // Position balls with collision detection
+    const canvasWidth = 800;
+    const canvasHeight = 600;
+    const minDistance = 120; // Minimum distance between ball centers
+
+    allTags.forEach((tag, index) => {
+      let x, y;
+      let attempts = 0;
+      const maxAttempts = 50;
+      
+      do {
+        x = 80 + Math.random() * (canvasWidth - 160);
+        y = 80 + Math.random() * (canvasHeight - 160);
+        attempts++;
+        
+        // Check collision with existing nodes
+        const collision = newNodes.some(node => {
+          const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
+          return distance < minDistance;
+        });
+        
+        if (!collision || attempts >= maxAttempts) break;
+      } while (true);
+
+      const size = tag.type === 'info' ? 90 : 70;
       
       newNodes.push({
-        id: `scoring-${record.id}`,
-        x: 400 + Math.cos(angle) * spreadRadius,
-        y: 300 + Math.sin(angle) * spreadRadius,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
-        type: 'tag',
-        title: record.category.length > 6 ? record.category.substring(0, 4) + '..' : record.category,
-        content: `${record.score}分`,
-        color: 'hsl(262 83% 58%)', // Beautiful purple
-        size: 50
+        id: tag.id,
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: (Math.random() - 0.5) * 0.2,
+        type: tag.type,
+        title: tag.title,
+        content: tag.content,
+        color: tag.color,
+        size
       });
     });
 
@@ -230,115 +244,125 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw elegant connections from center to other nodes
-      const centerNode = currentNodes.find(n => n.id === 'student-info');
-      if (centerNode) {
-        currentNodes.forEach(node => {
-          if (node.id !== 'student-info') {
-            // Create gradient line based on node type
-            const lineGradient = ctx.createLinearGradient(centerNode.x, centerNode.y, node.x, node.y);
-            lineGradient.addColorStop(0, 'hsla(223, 47%, 11%, 0.2)');
-            lineGradient.addColorStop(1, 'hsla(223, 47%, 11%, 0.1)');
-            
-            ctx.strokeStyle = lineGradient;
-            ctx.lineWidth = 2;
-            ctx.globalAlpha = 0.4;
-            ctx.beginPath();
-            ctx.moveTo(centerNode.x, centerNode.y);
-            ctx.lineTo(node.x, node.y);
-            ctx.stroke();
-          }
-        });
-      }
+      // No connections between nodes in this version
 
-      // Update and draw nodes with enhanced visuals
-      const updatedNodes = currentNodes.map(node => {
-        // Smooth floating movement
-        let newX = node.x + node.vx;
-        let newY = node.y + node.vy;
+      // Update and draw nodes with collision detection and smooth animation
+      const updatedNodes = currentNodes.map((node, index) => {
+        // Gentle floating movement with time-based sine wave
+        const time = Date.now() * 0.0005;
+        const baseVx = Math.sin(time + index * 0.7) * 0.1;
+        const baseVy = Math.cos(time + index * 0.5) * 0.1;
+        
+        let newX = node.x + node.vx + baseVx;
+        let newY = node.y + node.vy + baseVy;
 
-        // Boundary collision with damping
+        // Boundary collision with smooth bouncing
         if (newX < node.size / 2 || newX > canvas.width - node.size / 2) {
-          node.vx *= -0.8;
+          node.vx *= -0.7;
           newX = Math.max(node.size / 2, Math.min(canvas.width - node.size / 2, newX));
         }
         if (newY < node.size / 2 || newY > canvas.height - node.size / 2) {
-          node.vy *= -0.8;
+          node.vy *= -0.7;
           newY = Math.max(node.size / 2, Math.min(canvas.height - node.size / 2, newY));
         }
 
-        // Gentle attraction to keep center node centered
-        if (node.id === 'student-info') {
-          const targetX = 400;
-          const targetY = 300;
-          const dx = targetX - newX;
-          const dy = targetY - newY;
-          newX += dx * 0.02;
-          newY += dy * 0.02;
+        // Collision detection with other nodes
+        currentNodes.forEach((otherNode, otherIndex) => {
+          if (index !== otherIndex) {
+            const dx = newX - otherNode.x;
+            const dy = newY - otherNode.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const minDistance = (node.size + otherNode.size) / 2 + 20;
+            
+            if (distance < minDistance && distance > 0) {
+              const pushStrength = (minDistance - distance) * 0.01;
+              const pushX = (dx / distance) * pushStrength;
+              const pushY = (dy / distance) * pushStrength;
+              
+              newX += pushX;
+              newY += pushY;
+              node.vx += pushX * 0.1;
+              node.vy += pushY * 0.1;
+            }
+          }
+        });
+
+        // Apply gentle drag
+        node.vx *= 0.98;
+        node.vy *= 0.98;
+
+        // Add random tiny movements for natural feel
+        node.vx += (Math.random() - 0.5) * 0.01;
+        node.vy += (Math.random() - 0.5) * 0.01;
+
+        // Limit max velocity
+        const maxVel = 0.5;
+        const vel = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+        if (vel > maxVel) {
+          node.vx = (node.vx / vel) * maxVel;
+          node.vy = (node.vy / vel) * maxVel;
         }
 
-        // Add subtle gravitational pull toward center for all nodes
-        const centerX = 400;
-        const centerY = 300;
-        const distanceToCenter = Math.sqrt((newX - centerX) ** 2 + (newY - centerY) ** 2);
-        if (distanceToCenter > 50 && node.id !== 'student-info') {
-          const pullStrength = 0.001;
-          const pullX = (centerX - newX) * pullStrength;
-          const pullY = (centerY - newY) * pullStrength;
-          node.vx += pullX;
-          node.vy += pullY;
-        }
-
-        // Apply drag to slow down movement
-        node.vx *= 0.995;
-        node.vy *= 0.995;
-
-        // Draw beautiful node with shadow and glow
+        // Draw enhanced ball with beautiful shadows and gradients
         ctx.globalAlpha = 1;
         
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        // Outer shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         ctx.beginPath();
-        ctx.arc(newX + 3, newY + 3, node.size / 2, 0, 2 * Math.PI);
+        ctx.arc(newX + 4, newY + 4, node.size / 2, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Main node with gradient
-        const nodeGradient = ctx.createRadialGradient(newX, newY, 0, newX, newY, node.size / 2);
-        nodeGradient.addColorStop(0, node.color);
-        nodeGradient.addColorStop(1, node.color.replace(')', ', 0.8)'));
+        // Main ball with radial gradient
+        const nodeGradient = ctx.createRadialGradient(
+          newX - node.size * 0.15, newY - node.size * 0.15, 0,
+          newX, newY, node.size / 2
+        );
+        nodeGradient.addColorStop(0, node.color.replace('hsl(', 'hsl(').replace(')', ', 1)'));
+        nodeGradient.addColorStop(1, node.color.replace(')', ', 0.7)'));
         
         ctx.fillStyle = nodeGradient;
         ctx.beginPath();
         ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Elegant border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        // Inner glow
-        ctx.strokeStyle = node.color;
-        ctx.lineWidth = 1;
-        ctx.globalAlpha = 0.3;
-        ctx.stroke();
-
-        // Text with better styling
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = 'white';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1;
+        // Highlight
+        const highlightGradient = ctx.createRadialGradient(
+          newX - node.size * 0.2, newY - node.size * 0.2, 0,
+          newX - node.size * 0.2, newY - node.size * 0.2, node.size * 0.3
+        );
+        highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+        highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
         
-        ctx.font = `bold ${Math.max(11, node.size / 7)}px system-ui`;
+        ctx.fillStyle = highlightGradient;
+        ctx.beginPath();
+        ctx.arc(newX - node.size * 0.2, newY - node.size * 0.2, node.size * 0.3, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Elegant border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        // Beautiful text with enhanced typography
+        ctx.fillStyle = 'white';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        ctx.fillText(node.title, newX, newY - 6);
+        // Title text
+        const titleSize = Math.max(12, node.size / 6);
+        ctx.font = `bold ${titleSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillText(node.title, newX, newY - 8);
         
-        ctx.font = `${Math.max(9, node.size / 9)}px system-ui`;
-        ctx.fillText(node.content, newX, newY + 8);
+        // Content text
+        const contentSize = Math.max(10, node.size / 8);
+        ctx.font = `${contentSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillText(node.content, newX, newY + 10);
 
         // Reset shadow
         ctx.shadowColor = 'transparent';
@@ -412,37 +436,18 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
           <div className="grid grid-cols-1 lg:grid-cols-3 h-full">
             {/* Main View Area */}
             <div className="lg:col-span-2 relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-              {viewMode === 'graph' ? (
-                <>
-                  <canvas 
-                    ref={canvasRef}
-                    width={800}
-                    height={600}
-                    className="w-full h-full"
-                  />
-                  <div className="absolute top-4 left-4 flex gap-2">
-                    <Badge variant="secondary" className="bg-white/80 text-foreground">
-                      <Star className="w-3 h-3 mr-1" />
-                      关系图视图
-                    </Badge>
-                    <button
-                      onClick={() => setViewMode('tree')}
-                      className="px-3 py-1 bg-white/80 hover:bg-white/90 rounded-full text-sm font-medium transition-colors"
-                    >
-                      <Trees className="w-3 h-3 mr-1 inline" />
-                      松果视图
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <PineconeView 
-                  student={student}
-                  examResults={examResults}
-                  scoringRecords={scoringRecords}
-                  studentFeedback={getFeedbackByStudent(student.id || '')}
-                  onSwitchView={() => setViewMode('graph')}
-                />
-              )}
+              <canvas 
+                ref={canvasRef}
+                width={800}
+                height={600}
+                className="w-full h-full"
+              />
+              <div className="absolute top-4 left-4">
+                <Badge variant="secondary" className="bg-white/80 text-foreground">
+                  <Star className="w-3 h-3 mr-1" />
+                  标签球视图
+                </Badge>
+              </div>
             </div>
 
             {/* Statistics Panel */}
