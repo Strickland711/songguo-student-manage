@@ -109,14 +109,14 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
     loadStudentData();
   }, [user, student.id]);
 
-  // Create floating nodes
+  // Create floating nodes with beautiful tag system
   useEffect(() => {
     if (loading) return;
 
     const studentFeedback = getFeedbackByStudent(student.id || '');
     const newNodes: FloatingNode[] = [];
 
-    // Student basic info node (center)
+    // Student basic info node (center) - larger and more prominent
     newNodes.push({
       id: 'student-info',
       x: 400,
@@ -127,66 +127,76 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
       title: student.name,
       content: `班级: ${student.class}`,
       color: 'hsl(var(--primary))',
-      size: 80
+      size: 100
     });
 
-    // Exam results nodes
-    examResults.slice(0, 5).forEach((exam, index) => {
-      const angle = (index / 5) * 2 * Math.PI;
-      const radius = 150;
+    // Create tag-based floating balls with more organic positioning
+    let nodeIndex = 0;
+
+    // Exam results nodes - green cluster
+    examResults.slice(0, 4).forEach((exam, index) => {
+      const clusterAngle = Math.PI * 0.3; // Upper right
+      const spreadRadius = 80 + index * 30;
+      const angle = clusterAngle + (index - 1.5) * 0.4;
+      
       newNodes.push({
         id: `exam-${exam.id}`,
-        x: 400 + Math.cos(angle) * radius + (Math.random() - 0.5) * 100,
-        y: 300 + Math.sin(angle) * radius + (Math.random() - 0.5) * 100,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: (Math.random() - 0.5) * 0.5,
+        x: 400 + Math.cos(angle) * spreadRadius,
+        y: 300 + Math.sin(angle) * spreadRadius,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
         type: 'exam',
-        title: exam.exam_name,
+        title: exam.exam_name.length > 8 ? exam.exam_name.substring(0, 6) + '..' : exam.exam_name,
         content: `${exam.total_score.toFixed(1)}分`,
-        color: 'hsl(var(--accent))',
-        size: 60
+        color: exam.total_score >= 80 ? 'hsl(var(--success))' : 
+               exam.total_score >= 60 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))',
+        size: 65
       });
     });
 
-    // Feedback nodes
-    studentFeedback.slice(0, 6).forEach((feedback, index) => {
-      const angle = (index / 6) * 2 * Math.PI + Math.PI / 6;
-      const radius = 200;
+    // Feedback nodes - mood-based cluster
+    studentFeedback.slice(0, 4).forEach((feedback, index) => {
+      const clusterAngle = Math.PI * 1.7; // Lower left
+      const spreadRadius = 90 + index * 25;
+      const angle = clusterAngle + (index - 1.5) * 0.3;
+      
       const moodColors = {
-        'happy': 'hsl(120, 70%, 50%)',
-        'neutral': 'hsl(60, 70%, 50%)',
-        'sad': 'hsl(0, 70%, 50%)'
+        'happy': 'hsl(142 71% 45%)',
+        'neutral': 'hsl(38 92% 50%)', 
+        'sad': 'hsl(0 84% 60%)'
       };
       
       newNodes.push({
         id: `feedback-${feedback.id}`,
-        x: 400 + Math.cos(angle) * radius + (Math.random() - 0.5) * 80,
-        y: 300 + Math.sin(angle) * radius + (Math.random() - 0.5) * 80,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
+        x: 400 + Math.cos(angle) * spreadRadius,
+        y: 300 + Math.sin(angle) * spreadRadius,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
         type: 'feedback',
-        title: `反馈 ${feedback.feedback_date}`,
+        title: '反馈',
         content: feedback.mood,
         color: moodColors[feedback.mood as keyof typeof moodColors] || 'hsl(var(--muted))',
-        size: 50
+        size: 55
       });
     });
 
-    // Scoring records nodes
+    // Scoring records nodes - purple cluster
     scoringRecords.slice(0, 4).forEach((record, index) => {
-      const angle = (index / 4) * 2 * Math.PI + Math.PI / 4;
-      const radius = 250;
+      const clusterAngle = Math.PI * 0.8; // Upper left
+      const spreadRadius = 85 + index * 35;
+      const angle = clusterAngle + (index - 1.5) * 0.35;
+      
       newNodes.push({
         id: `scoring-${record.id}`,
-        x: 400 + Math.cos(angle) * radius + (Math.random() - 0.5) * 60,
-        y: 300 + Math.sin(angle) * radius + (Math.random() - 0.5) * 60,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
+        x: 400 + Math.cos(angle) * spreadRadius,
+        y: 300 + Math.sin(angle) * spreadRadius,
+        vx: (Math.random() - 0.5) * 0.35,
+        vy: (Math.random() - 0.5) * 0.35,
         type: 'tag',
-        title: record.category,
+        title: record.category.length > 6 ? record.category.substring(0, 4) + '..' : record.category,
         content: `${record.score}分`,
-        color: 'hsl(var(--secondary))',
-        size: 45
+        color: 'hsl(262 83% 58%)', // Beautiful purple
+        size: 50
       });
     });
 
@@ -213,14 +223,26 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw connections from center to other nodes
+      // Draw beautiful gradient background
+      const gradient = ctx.createRadialGradient(400, 300, 0, 400, 300, 400);
+      gradient.addColorStop(0, 'hsl(218 25% 98% / 0.1)');
+      gradient.addColorStop(1, 'hsl(223 47% 11% / 0.05)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw elegant connections from center to other nodes
       const centerNode = currentNodes.find(n => n.id === 'student-info');
       if (centerNode) {
         currentNodes.forEach(node => {
           if (node.id !== 'student-info') {
-            ctx.strokeStyle = 'hsl(210 40% 80%)';
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.3;
+            // Create gradient line based on node type
+            const lineGradient = ctx.createLinearGradient(centerNode.x, centerNode.y, node.x, node.y);
+            lineGradient.addColorStop(0, 'hsl(var(--primary) / 0.2)');
+            lineGradient.addColorStop(1, node.color.replace(')', ' / 0.3)'));
+            
+            ctx.strokeStyle = lineGradient;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.4;
             ctx.beginPath();
             ctx.moveTo(centerNode.x, centerNode.y);
             ctx.lineTo(node.x, node.y);
@@ -229,55 +251,100 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         });
       }
 
-      // Update and draw nodes
+      // Update and draw nodes with enhanced visuals
       const updatedNodes = currentNodes.map(node => {
-        // Update position
+        // Smooth floating movement
         let newX = node.x + node.vx;
         let newY = node.y + node.vy;
 
-        // Boundary collision
+        // Boundary collision with damping
         if (newX < node.size / 2 || newX > canvas.width - node.size / 2) {
-          node.vx *= -1;
+          node.vx *= -0.8;
           newX = Math.max(node.size / 2, Math.min(canvas.width - node.size / 2, newX));
         }
         if (newY < node.size / 2 || newY > canvas.height - node.size / 2) {
-          node.vy *= -1;
+          node.vy *= -0.8;
           newY = Math.max(node.size / 2, Math.min(canvas.height - node.size / 2, newY));
         }
 
-        // Gentle attraction to original position for center node
+        // Gentle attraction to keep center node centered
         if (node.id === 'student-info') {
           const targetX = 400;
           const targetY = 300;
           const dx = targetX - newX;
           const dy = targetY - newY;
-          newX += dx * 0.01;
-          newY += dy * 0.01;
+          newX += dx * 0.02;
+          newY += dy * 0.02;
         }
 
-        // Draw node
+        // Add subtle gravitational pull toward center for all nodes
+        const centerX = 400;
+        const centerY = 300;
+        const distanceToCenter = Math.sqrt((newX - centerX) ** 2 + (newY - centerY) ** 2);
+        if (distanceToCenter > 50 && node.id !== 'student-info') {
+          const pullStrength = 0.001;
+          const pullX = (centerX - newX) * pullStrength;
+          const pullY = (centerY - newY) * pullStrength;
+          node.vx += pullX;
+          node.vy += pullY;
+        }
+
+        // Apply drag to slow down movement
+        node.vx *= 0.995;
+        node.vy *= 0.995;
+
+        // Draw beautiful node with shadow and glow
         ctx.globalAlpha = 1;
-        ctx.fillStyle = node.color;
+        
+        // Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.beginPath();
+        ctx.arc(newX + 3, newY + 3, node.size / 2, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Main node with gradient
+        const nodeGradient = ctx.createRadialGradient(newX, newY, 0, newX, newY, node.size / 2);
+        nodeGradient.addColorStop(0, node.color);
+        nodeGradient.addColorStop(1, node.color.replace(')', ' / 0.8)'));
+        
+        ctx.fillStyle = nodeGradient;
         ctx.beginPath();
         ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Draw border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.lineWidth = 2;
+        // Elegant border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Draw text
+        // Inner glow
+        ctx.strokeStyle = node.color;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.3;
+        ctx.stroke();
+
+        // Text with better styling
+        ctx.globalAlpha = 1;
         ctx.fillStyle = 'white';
-        ctx.font = `bold ${Math.max(10, node.size / 8)}px sans-serif`;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        
+        ctx.font = `bold ${Math.max(11, node.size / 7)}px system-ui`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        const title = node.title.length > 8 ? node.title.substring(0, 8) + '...' : node.title;
-        ctx.fillText(title, newX, newY - 5);
+        ctx.fillText(node.title, newX, newY - 6);
         
-        ctx.font = `${Math.max(8, node.size / 10)}px sans-serif`;
-        ctx.fillText(node.content, newX, newY + 10);
+        ctx.font = `${Math.max(9, node.size / 9)}px system-ui`;
+        ctx.fillText(node.content, newX, newY + 8);
+
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
 
         return { ...node, x: newX, y: newY };
       });
