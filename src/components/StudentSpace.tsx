@@ -130,7 +130,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
       id: 'student-info',
       title: student.name,
       content: `班级: ${student.class}`,
-      color: 'hsl(223, 47%, 11%)',
+      color: 'hsl(217, 91%, 60%)', // Beautiful blue
       type: 'info'
     });
 
@@ -140,8 +140,9 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         id: `exam-${exam.id}`,
         title: exam.exam_name.length > 10 ? exam.exam_name.substring(0, 8) + '..' : exam.exam_name,
         content: `${exam.total_score.toFixed(1)}分`,
-        color: exam.total_score >= 80 ? 'hsl(142, 71%, 45%)' : 
-               exam.total_score >= 60 ? 'hsl(38, 92%, 50%)' : 'hsl(0, 84%, 60%)',
+        color: exam.total_score >= 80 ? 'hsl(134, 61%, 50%)' :  // Fresh green
+               exam.total_score >= 60 ? 'hsl(45, 93%, 58%)' :    // Warm amber
+               'hsl(0, 72%, 51%)',                                // Soft red
         type: 'exam'
       });
     });
@@ -149,9 +150,9 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
     // Feedback
     studentFeedback.forEach((feedback) => {
       const moodColors = {
-        'happy': 'hsl(142, 71%, 45%)',
-        'neutral': 'hsl(38, 92%, 50%)', 
-        'sad': 'hsl(0, 84%, 60%)'
+        'happy': 'hsl(134, 61%, 50%)',    // Fresh green
+        'neutral': 'hsl(45, 93%, 58%)',   // Warm amber
+        'sad': 'hsl(0, 72%, 51%)'         // Soft red
       };
       
       allTags.push({
@@ -169,7 +170,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         id: `scoring-${record.id}`,
         title: record.category.length > 8 ? record.category.substring(0, 6) + '..' : record.category,
         content: `${record.score}분`,
-        color: 'hsl(262, 83%, 58%)',
+        color: 'hsl(271, 81%, 56%)', // Beautiful purple
         type: 'tag'
       });
     });
@@ -204,8 +205,8 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         id: tag.id,
         x,
         y,
-        vx: (Math.random() - 0.5) * 0.2,
-        vy: (Math.random() - 0.5) * 0.2,
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: (Math.random() - 0.5) * 0.15,
         type: tag.type,
         title: tag.title,
         content: tag.content,
@@ -246,101 +247,90 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
 
       // No connections between nodes in this version
 
-      // Update and draw nodes with collision detection and smooth animation
+      // Update and draw nodes with slow consistent movement
       const updatedNodes = currentNodes.map((node, index) => {
-        // Gentle floating movement with time-based sine wave
-        const time = Date.now() * 0.0005;
-        const baseVx = Math.sin(time + index * 0.7) * 0.1;
-        const baseVy = Math.cos(time + index * 0.5) * 0.1;
+        // Simple consistent movement - normalize velocity for fixed speed
+        const currentSpeed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+        const targetSpeed = 0.08; // Very slow fixed speed
         
-        let newX = node.x + node.vx + baseVx;
-        let newY = node.y + node.vy + baseVy;
+        if (currentSpeed > 0) {
+          node.vx = (node.vx / currentSpeed) * targetSpeed;
+          node.vy = (node.vy / currentSpeed) * targetSpeed;
+        }
+        
+        let newX = node.x + node.vx;
+        let newY = node.y + node.vy;
 
-        // Boundary collision with smooth bouncing
+        // Boundary collision with direction change
         if (newX < node.size / 2 || newX > canvas.width - node.size / 2) {
-          node.vx *= -0.7;
+          node.vx *= -1;
           newX = Math.max(node.size / 2, Math.min(canvas.width - node.size / 2, newX));
         }
         if (newY < node.size / 2 || newY > canvas.height - node.size / 2) {
-          node.vy *= -0.7;
+          node.vy *= -1;
           newY = Math.max(node.size / 2, Math.min(canvas.height - node.size / 2, newY));
         }
 
-        // Collision detection with other nodes
+        // Simple collision detection - just bounce away
         currentNodes.forEach((otherNode, otherIndex) => {
           if (index !== otherIndex) {
             const dx = newX - otherNode.x;
             const dy = newY - otherNode.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            const minDistance = (node.size + otherNode.size) / 2 + 20;
+            const minDistance = (node.size + otherNode.size) / 2 + 15;
             
             if (distance < minDistance && distance > 0) {
-              const pushStrength = (minDistance - distance) * 0.01;
-              const pushX = (dx / distance) * pushStrength;
-              const pushY = (dy / distance) * pushStrength;
+              // Simple bounce - reverse direction with slight randomness
+              const bounceX = (dx / distance);
+              const bounceY = (dy / distance);
+              node.vx = bounceX * targetSpeed;
+              node.vy = bounceY * targetSpeed;
               
-              newX += pushX;
-              newY += pushY;
-              node.vx += pushX * 0.1;
-              node.vy += pushY * 0.1;
+              // Add tiny random component to prevent stuck situations
+              node.vx += (Math.random() - 0.5) * 0.01;
+              node.vy += (Math.random() - 0.5) * 0.01;
             }
           }
         });
 
-        // Apply gentle drag
-        node.vx *= 0.98;
-        node.vy *= 0.98;
-
-        // Add random tiny movements for natural feel
-        node.vx += (Math.random() - 0.5) * 0.01;
-        node.vy += (Math.random() - 0.5) * 0.01;
-
-        // Limit max velocity
-        const maxVel = 0.5;
-        const vel = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-        if (vel > maxVel) {
-          node.vx = (node.vx / vel) * maxVel;
-          node.vy = (node.vy / vel) * maxVel;
-        }
-
-        // Draw enhanced ball with beautiful shadows and gradients
+        // Draw beautiful ball with elegant styling
         ctx.globalAlpha = 1;
         
-        // Outer shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        // Soft shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
         ctx.beginPath();
-        ctx.arc(newX + 4, newY + 4, node.size / 2, 0, 2 * Math.PI);
+        ctx.arc(newX + 2, newY + 2, node.size / 2, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Main ball with radial gradient
+        // Main ball with subtle gradient
         const nodeGradient = ctx.createRadialGradient(
-          newX - node.size * 0.15, newY - node.size * 0.15, 0,
+          newX - node.size * 0.1, newY - node.size * 0.1, 0,
           newX, newY, node.size / 2
         );
-        nodeGradient.addColorStop(0, node.color.replace('hsl(', 'hsl(').replace(')', ', 1)'));
-        nodeGradient.addColorStop(1, node.color.replace(')', ', 0.7)'));
+        nodeGradient.addColorStop(0, node.color);
+        nodeGradient.addColorStop(1, node.color.replace(')', ', 0.85)'));
         
         ctx.fillStyle = nodeGradient;
         ctx.beginPath();
         ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Highlight
+        // Subtle highlight
         const highlightGradient = ctx.createRadialGradient(
-          newX - node.size * 0.2, newY - node.size * 0.2, 0,
-          newX - node.size * 0.2, newY - node.size * 0.2, node.size * 0.3
+          newX - node.size * 0.15, newY - node.size * 0.15, 0,
+          newX - node.size * 0.15, newY - node.size * 0.15, node.size * 0.25
         );
-        highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+        highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
         highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
         
         ctx.fillStyle = highlightGradient;
         ctx.beginPath();
-        ctx.arc(newX - node.size * 0.2, newY - node.size * 0.2, node.size * 0.3, 0, 2 * Math.PI);
+        ctx.arc(newX - node.size * 0.15, newY - node.size * 0.15, node.size * 0.25, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Elegant border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.lineWidth = 2;
+        // Clean border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
         ctx.stroke();
