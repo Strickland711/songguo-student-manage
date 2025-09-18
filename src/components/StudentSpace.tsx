@@ -205,8 +205,8 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         id: tag.id,
         x,
         y,
-        vx: (Math.random() - 0.5) * 0.15,
-        vy: (Math.random() - 0.5) * 0.15,
+        vx: (Math.random() - 0.5) * 0.0015,
+        vy: (Math.random() - 0.5) * 0.0015,
         type: tag.type,
         title: tag.title,
         content: tag.content,
@@ -247,51 +247,91 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
 
       // No connections between nodes in this version
 
-      // Update and draw nodes with slow consistent movement
+      // Update and draw nodes with very slow fixed movement and collision prevention
       const updatedNodes = currentNodes.map((node, index) => {
-        // Simple consistent movement - normalize velocity for fixed speed
-        const currentSpeed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-        const targetSpeed = 0.08; // Very slow fixed speed
+        // Set very slow fixed speed - 100 times slower
+        const targetSpeed = 0.0008; // Extremely slow fixed speed
         
+        // Normalize velocity to maintain consistent speed
+        const currentSpeed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
         if (currentSpeed > 0) {
           node.vx = (node.vx / currentSpeed) * targetSpeed;
           node.vy = (node.vy / currentSpeed) * targetSpeed;
+        } else {
+          // If somehow velocity is zero, give it a random direction
+          const angle = Math.random() * Math.PI * 2;
+          node.vx = Math.cos(angle) * targetSpeed;
+          node.vy = Math.sin(angle) * targetSpeed;
         }
         
         let newX = node.x + node.vx;
         let newY = node.y + node.vy;
 
-        // Boundary collision with direction change
-        if (newX < node.size / 2 || newX > canvas.width - node.size / 2) {
-          node.vx *= -1;
-          newX = Math.max(node.size / 2, Math.min(canvas.width - node.size / 2, newX));
+        // Boundary collision - reverse direction
+        if (newX < node.size / 2) {
+          newX = node.size / 2;
+          node.vx = Math.abs(node.vx);
+        } else if (newX > canvas.width - node.size / 2) {
+          newX = canvas.width - node.size / 2;
+          node.vx = -Math.abs(node.vx);
         }
-        if (newY < node.size / 2 || newY > canvas.height - node.size / 2) {
-          node.vy *= -1;
-          newY = Math.max(node.size / 2, Math.min(canvas.height - node.size / 2, newY));
+        
+        if (newY < node.size / 2) {
+          newY = node.size / 2;
+          node.vy = Math.abs(node.vy);
+        } else if (newY > canvas.height - node.size / 2) {
+          newY = canvas.height - node.size / 2;
+          node.vy = -Math.abs(node.vy);
         }
 
-        // Simple collision detection - just bounce away
+        // Collision detection and prevention with other nodes
         currentNodes.forEach((otherNode, otherIndex) => {
           if (index !== otherIndex) {
             const dx = newX - otherNode.x;
             const dy = newY - otherNode.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            const minDistance = (node.size + otherNode.size) / 2 + 15;
+            const minDistance = (node.size + otherNode.size) / 2 + 5; // Minimum gap between balls
             
             if (distance < minDistance && distance > 0) {
-              // Simple bounce - reverse direction with slight randomness
-              const bounceX = (dx / distance);
-              const bounceY = (dy / distance);
-              node.vx = bounceX * targetSpeed;
-              node.vy = bounceY * targetSpeed;
+              // Calculate collision response - elastic collision
+              const overlap = minDistance - distance;
+              const separationX = (dx / distance) * (overlap / 2);
+              const separationY = (dy / distance) * (overlap / 2);
               
-              // Add tiny random component to prevent stuck situations
-              node.vx += (Math.random() - 0.5) * 0.01;
-              node.vy += (Math.random() - 0.5) * 0.01;
+              // Move balls apart to prevent overlap
+              newX += separationX;
+              newY += separationY;
+              
+              // Reflect velocities for bounce effect
+              const normalX = dx / distance;
+              const normalY = dy / distance;
+              
+              // Calculate relative velocity
+              const relativeVx = node.vx;
+              const relativeVy = node.vy;
+              
+              // Calculate collision response
+              const speed = relativeVx * normalX + relativeVy * normalY;
+              
+              if (speed < 0) {
+                // Objects are moving towards each other
+                node.vx -= 2 * speed * normalX;
+                node.vy -= 2 * speed * normalY;
+                
+                // Normalize to maintain fixed speed
+                const newSpeed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+                if (newSpeed > 0) {
+                  node.vx = (node.vx / newSpeed) * targetSpeed;
+                  node.vy = (node.vy / newSpeed) * targetSpeed;
+                }
+              }
             }
           }
         });
+
+        // Ensure we stay within bounds after collision adjustments
+        newX = Math.max(node.size / 2, Math.min(canvas.width - node.size / 2, newX));
+        newY = Math.max(node.size / 2, Math.min(canvas.height - node.size / 2, newY));
 
         // Draw beautiful ball with elegant styling
         ctx.globalAlpha = 1;
