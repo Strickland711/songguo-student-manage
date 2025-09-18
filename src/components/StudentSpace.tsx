@@ -348,7 +348,9 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
           newX, newY, node.size / 2
         );
         nodeGradient.addColorStop(0, node.color);
-        nodeGradient.addColorStop(1, node.color.replace(')', ', 0.85)'));
+        nodeGradient.addColorStop(1, node.color.startsWith('hsl(')
+          ? node.color.replace('hsl(', 'hsla(').replace(')', ', 0.85)')
+          : node.color);
         
         ctx.fillStyle = nodeGradient;
         ctx.beginPath();
@@ -405,8 +407,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
 
       // Update nodes ref for next frame
       nodesRef.current = updatedNodes;
-      setNodes(updatedNodes);
-
+      // Avoid setState here to prevent 60fps re-renders and flicker
       animationRef.current = requestAnimationFrame(animate);
     };
 
