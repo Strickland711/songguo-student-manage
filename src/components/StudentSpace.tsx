@@ -126,7 +126,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
       type: 'info',
       title: student.name,
       content: `班级: ${student.class}`,
-      color: 'hsl(var(--primary))',
+      color: 'hsl(223, 47%, 11%)',
       size: 100
     });
 
@@ -139,19 +139,19 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
       const spreadRadius = 80 + index * 30;
       const angle = clusterAngle + (index - 1.5) * 0.4;
       
-      newNodes.push({
-        id: `exam-${exam.id}`,
-        x: 400 + Math.cos(angle) * spreadRadius,
-        y: 300 + Math.sin(angle) * spreadRadius,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        type: 'exam',
-        title: exam.exam_name.length > 8 ? exam.exam_name.substring(0, 6) + '..' : exam.exam_name,
-        content: `${exam.total_score.toFixed(1)}分`,
-        color: exam.total_score >= 80 ? 'hsl(var(--success))' : 
-               exam.total_score >= 60 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))',
-        size: 65
-      });
+        newNodes.push({
+          id: `exam-${exam.id}`,
+          x: 400 + Math.cos(angle) * spreadRadius,
+          y: 300 + Math.sin(angle) * spreadRadius,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+          type: 'exam',
+          title: exam.exam_name.length > 8 ? exam.exam_name.substring(0, 6) + '..' : exam.exam_name,
+          content: `${exam.total_score.toFixed(1)}分`,
+          color: exam.total_score >= 80 ? 'hsl(142, 71%, 45%)' : 
+                 exam.total_score >= 60 ? 'hsl(38, 92%, 50%)' : 'hsl(0, 84%, 60%)',
+          size: 65
+        });
     });
 
     // Feedback nodes - mood-based cluster
@@ -225,8 +225,8 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
 
       // Draw beautiful gradient background
       const gradient = ctx.createRadialGradient(400, 300, 0, 400, 300, 400);
-      gradient.addColorStop(0, 'hsl(218 25% 98% / 0.1)');
-      gradient.addColorStop(1, 'hsl(223 47% 11% / 0.05)');
+      gradient.addColorStop(0, 'hsla(218, 25%, 98%, 0.1)');
+      gradient.addColorStop(1, 'hsla(223, 47%, 11%, 0.05)');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -237,8 +237,8 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
           if (node.id !== 'student-info') {
             // Create gradient line based on node type
             const lineGradient = ctx.createLinearGradient(centerNode.x, centerNode.y, node.x, node.y);
-            lineGradient.addColorStop(0, 'hsl(var(--primary) / 0.2)');
-            lineGradient.addColorStop(1, node.color.replace(')', ' / 0.3)'));
+            lineGradient.addColorStop(0, 'hsla(223, 47%, 11%, 0.2)');
+            lineGradient.addColorStop(1, 'hsla(223, 47%, 11%, 0.1)');
             
             ctx.strokeStyle = lineGradient;
             ctx.lineWidth = 2;
@@ -305,7 +305,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         // Main node with gradient
         const nodeGradient = ctx.createRadialGradient(newX, newY, 0, newX, newY, node.size / 2);
         nodeGradient.addColorStop(0, node.color);
-        nodeGradient.addColorStop(1, node.color.replace(')', ' / 0.8)'));
+        nodeGradient.addColorStop(1, node.color.replace(')', ', 0.8)'));
         
         ctx.fillStyle = nodeGradient;
         ctx.beginPath();
