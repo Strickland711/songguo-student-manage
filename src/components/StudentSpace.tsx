@@ -1,31 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, User, BookOpen, MessageSquare, Target, Star, TrendingUp, Trees } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { X, User, BookOpen, MessageSquare, Target, Star, TrendingUp, Calendar, Award, BarChart3, Activity } from 'lucide-react';
 import { Student } from '@/hooks/useStudentData';
 import { useFeedbackData } from '@/hooks/useFeedbackData';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-
 interface StudentSpaceProps {
   student: Student;
   onClose: () => void;
-}
-
-interface FloatingNode {
-  id: string;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  type: 'info' | 'exam' | 'feedback' | 'tag';
-  title: string;
-  content: string;
-  color: string;
-  size: number;
 }
 
 interface ExamResult {
@@ -40,13 +27,9 @@ interface ExamResult {
 const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
-  const [nodes, setNodes] = useState<FloatingNode[]>([]);
   const [examResults, setExamResults] = useState<ExamResult[]>([]);
   const [scoringRecords, setScoringRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
   
   const { feedbackRecords, getFeedbackByStudent } = useFeedbackData();
 
@@ -109,317 +92,6 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
     loadStudentData();
   }, [user, student.id]);
 
-  // Create individual floating balls for each tag with collision detection
-  useEffect(() => {
-    if (loading) return;
-
-    const studentFeedback = getFeedbackByStudent(student.id || '');
-    const newNodes: FloatingNode[] = [];
-    
-    // Collect all tags/data points
-    const allTags: Array<{
-      id: string;
-      title: string;
-      content: string;
-      color: string;
-      type: 'info' | 'exam' | 'feedback' | 'tag';
-    }> = [];
-
-    // Student basic info
-    allTags.push({
-      id: 'student-info',
-      title: student.name,
-      content: `班级: ${student.class}`,
-      color: 'hsl(217, 91%, 60%)', // Beautiful blue
-      type: 'info'
-    });
-
-    // Exam results
-    examResults.forEach((exam) => {
-      allTags.push({
-        id: `exam-${exam.id}`,
-        title: exam.exam_name.length > 10 ? exam.exam_name.substring(0, 8) + '..' : exam.exam_name,
-        content: `${exam.total_score.toFixed(1)}分`,
-        color: exam.total_score >= 80 ? 'hsl(134, 61%, 50%)' :  // Fresh green
-               exam.total_score >= 60 ? 'hsl(45, 93%, 58%)' :    // Warm amber
-               'hsl(0, 72%, 51%)',                                // Soft red
-        type: 'exam'
-      });
-    });
-
-    // Feedback
-    studentFeedback.forEach((feedback) => {
-      const moodColors = {
-        'happy': 'hsl(134, 61%, 50%)',    // Fresh green
-        'neutral': 'hsl(45, 93%, 58%)',   // Warm amber
-        'sad': 'hsl(0, 72%, 51%)'         // Soft red
-      };
-      
-      allTags.push({
-        id: `feedback-${feedback.id}`,
-        title: '反馈',
-        content: feedback.mood,
-        color: moodColors[feedback.mood as keyof typeof moodColors] || 'hsl(220, 13%, 91%)',
-        type: 'feedback'
-      });
-    });
-
-    // Scoring records
-    scoringRecords.forEach((record) => {
-      allTags.push({
-        id: `scoring-${record.id}`,
-        title: record.category.length > 8 ? record.category.substring(0, 6) + '..' : record.category,
-        content: `${record.score}분`,
-        color: 'hsl(271, 81%, 56%)', // Beautiful purple
-        type: 'tag'
-      });
-    });
-
-    // Position balls with collision detection
-    const canvasWidth = 800;
-    const canvasHeight = 600;
-    const minDistance = 120; // Minimum distance between ball centers
-
-    allTags.forEach((tag, index) => {
-      let x, y;
-      let attempts = 0;
-      const maxAttempts = 50;
-      
-      do {
-        x = 80 + Math.random() * (canvasWidth - 160);
-        y = 80 + Math.random() * (canvasHeight - 160);
-        attempts++;
-        
-        // Check collision with existing nodes
-        const collision = newNodes.some(node => {
-          const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
-          return distance < minDistance;
-        });
-        
-        if (!collision || attempts >= maxAttempts) break;
-      } while (true);
-
-      const size = tag.type === 'info' ? 90 : 70;
-      
-      newNodes.push({
-        id: tag.id,
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 0.0015,
-        vy: (Math.random() - 0.5) * 0.0015,
-        type: tag.type,
-        title: tag.title,
-        content: tag.content,
-        color: tag.color,
-        size
-      });
-    });
-
-    setNodes(newNodes);
-  }, [loading, examResults, scoringRecords, student, getFeedbackByStudent]);
-
-  // Animation loop with useRef for nodes to avoid dependency issues
-  const nodesRef = useRef<FloatingNode[]>([]);
-  
-  useEffect(() => {
-    nodesRef.current = nodes;
-  }, [nodes]);
-
-  useEffect(() => {
-    if (!canvasRef.current || nodes.length === 0) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const animate = () => {
-      const currentNodes = nodesRef.current;
-      if (currentNodes.length === 0) return;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw beautiful gradient background
-      const gradient = ctx.createRadialGradient(400, 300, 0, 400, 300, 400);
-      gradient.addColorStop(0, 'hsla(218, 25%, 98%, 0.1)');
-      gradient.addColorStop(1, 'hsla(223, 47%, 11%, 0.05)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // No connections between nodes in this version
-
-      // Update and draw nodes with very slow fixed movement and collision prevention
-      const updatedNodes = currentNodes.map((node, index) => {
-        // Set very slow fixed speed - 100 times slower
-        const targetSpeed = 0.0008; // Extremely slow fixed speed
-        
-        // Normalize velocity to maintain consistent speed
-        const currentSpeed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-        if (currentSpeed > 0) {
-          node.vx = (node.vx / currentSpeed) * targetSpeed;
-          node.vy = (node.vy / currentSpeed) * targetSpeed;
-        } else {
-          // If somehow velocity is zero, give it a random direction
-          const angle = Math.random() * Math.PI * 2;
-          node.vx = Math.cos(angle) * targetSpeed;
-          node.vy = Math.sin(angle) * targetSpeed;
-        }
-        
-        let newX = node.x + node.vx;
-        let newY = node.y + node.vy;
-
-        // Boundary collision - reverse direction
-        if (newX < node.size / 2) {
-          newX = node.size / 2;
-          node.vx = Math.abs(node.vx);
-        } else if (newX > canvas.width - node.size / 2) {
-          newX = canvas.width - node.size / 2;
-          node.vx = -Math.abs(node.vx);
-        }
-        
-        if (newY < node.size / 2) {
-          newY = node.size / 2;
-          node.vy = Math.abs(node.vy);
-        } else if (newY > canvas.height - node.size / 2) {
-          newY = canvas.height - node.size / 2;
-          node.vy = -Math.abs(node.vy);
-        }
-
-        // Collision detection and prevention with other nodes
-        currentNodes.forEach((otherNode, otherIndex) => {
-          if (index !== otherIndex) {
-            const dx = newX - otherNode.x;
-            const dy = newY - otherNode.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            const minDistance = (node.size + otherNode.size) / 2 + 5; // Minimum gap between balls
-            
-            if (distance < minDistance && distance > 0) {
-              // Calculate collision response - elastic collision
-              const overlap = minDistance - distance;
-              const separationX = (dx / distance) * (overlap / 2);
-              const separationY = (dy / distance) * (overlap / 2);
-              
-              // Move balls apart to prevent overlap
-              newX += separationX;
-              newY += separationY;
-              
-              // Reflect velocities for bounce effect
-              const normalX = dx / distance;
-              const normalY = dy / distance;
-              
-              // Calculate relative velocity
-              const relativeVx = node.vx;
-              const relativeVy = node.vy;
-              
-              // Calculate collision response
-              const speed = relativeVx * normalX + relativeVy * normalY;
-              
-              if (speed < 0) {
-                // Objects are moving towards each other
-                node.vx -= 2 * speed * normalX;
-                node.vy -= 2 * speed * normalY;
-                
-                // Normalize to maintain fixed speed
-                const newSpeed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-                if (newSpeed > 0) {
-                  node.vx = (node.vx / newSpeed) * targetSpeed;
-                  node.vy = (node.vy / newSpeed) * targetSpeed;
-                }
-              }
-            }
-          }
-        });
-
-        // Ensure we stay within bounds after collision adjustments
-        newX = Math.max(node.size / 2, Math.min(canvas.width - node.size / 2, newX));
-        newY = Math.max(node.size / 2, Math.min(canvas.height - node.size / 2, newY));
-
-        // Draw beautiful ball with elegant styling
-        ctx.globalAlpha = 1;
-        
-        // Soft shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        ctx.beginPath();
-        ctx.arc(newX + 2, newY + 2, node.size / 2, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Main ball with subtle gradient
-        const nodeGradient = ctx.createRadialGradient(
-          newX - node.size * 0.1, newY - node.size * 0.1, 0,
-          newX, newY, node.size / 2
-        );
-        nodeGradient.addColorStop(0, node.color);
-        nodeGradient.addColorStop(1, node.color.startsWith('hsl(')
-          ? node.color.replace('hsl(', 'hsla(').replace(')', ', 0.85)')
-          : node.color);
-        
-        ctx.fillStyle = nodeGradient;
-        ctx.beginPath();
-        ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Subtle highlight
-        const highlightGradient = ctx.createRadialGradient(
-          newX - node.size * 0.15, newY - node.size * 0.15, 0,
-          newX - node.size * 0.15, newY - node.size * 0.15, node.size * 0.25
-        );
-        highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
-        highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        
-        ctx.fillStyle = highlightGradient;
-        ctx.beginPath();
-        ctx.arc(newX - node.size * 0.15, newY - node.size * 0.15, node.size * 0.25, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Clean border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(newX, newY, node.size / 2, 0, 2 * Math.PI);
-        ctx.stroke();
-
-        // Beautiful text with enhanced typography
-        ctx.fillStyle = 'white';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 6;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        // Title text
-        const titleSize = Math.max(12, node.size / 6);
-        ctx.font = `bold ${titleSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        ctx.fillText(node.title, newX, newY - 8);
-        
-        // Content text
-        const contentSize = Math.max(10, node.size / 8);
-        ctx.font = `${contentSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        ctx.fillText(node.content, newX, newY + 10);
-
-        // Reset shadow
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-
-        return { ...node, x: newX, y: newY };
-      });
-
-      // Update nodes ref for next frame
-      nodesRef.current = updatedNodes;
-      // Avoid setState here to prevent 60fps re-renders and flicker
-      animationRef.current = requestAnimationFrame(animate);
-    };
-
-    animate();
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [nodes.length > 0]);
-
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -443,169 +115,226 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
     ? examResults.reduce((sum, exam) => sum + (exam.correct_count / exam.total_questions), 0) / examResults.length * 100
     : 0;
 
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'text-green-600';
+    if (score >= 80) return 'text-blue-600';
+    if (score >= 70) return 'text-yellow-600';
+    if (score >= 60) return 'text-orange-600';
+    return 'text-red-600';
+  };
+
+  const getMoodColor = (mood: string) => {
+    switch (mood) {
+      case 'happy': return 'bg-green-100 text-green-700 border-green-200';
+      case 'neutral': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'sad': return 'bg-red-100 text-red-700 border-red-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-6xl h-[90vh] flex flex-col">
-        <CardHeader className="flex-shrink-0 border-b">
+      <Card className="w-full max-w-7xl h-[95vh] flex flex-col">
+        <CardHeader className="flex-shrink-0 border-b bg-gradient-to-r from-primary/5 to-accent/5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <User className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                <User className="w-8 h-8 text-white" />
               </div>
               <div>
-                <CardTitle className="text-2xl">{student.name} 的学习空间</CardTitle>
-                <p className="text-muted-foreground">班级: {student.class}</p>
+                <CardTitle className="text-3xl font-bold">{student.name}</CardTitle>
+                <p className="text-lg text-muted-foreground flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  班级: {student.class}
+                </p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="w-4 h-4" />
+            <Button variant="ghost" size="sm" onClick={onClose} className="hover:bg-destructive/10">
+              <X className="w-5 h-5" />
             </Button>
           </div>
         </CardHeader>
 
-        <div className="flex-1 overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-3 h-full">
-            {/* Main View Area */}
-            <div className="lg:col-span-2 relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-              <canvas 
-                ref={canvasRef}
-                width={800}
-                height={600}
-                className="w-full h-full"
-              />
-              <div className="absolute top-4 left-4">
-                <Badge variant="secondary" className="bg-white/80 text-foreground">
-                  <Star className="w-3 h-3 mr-1" />
-                  标签球视图
-                </Badge>
+        <div className="flex-1 overflow-hidden p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
+            {/* Key Metrics */}
+            <div className="lg:col-span-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-blue-600">平均分数</p>
+                        <p className={`text-3xl font-bold ${getScoreColor(averageScore)}`}>
+                          {averageScore.toFixed(1)}
+                        </p>
+                      </div>
+                      <Target className="w-8 h-8 text-blue-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-green-600">正确率</p>
+                        <p className="text-3xl font-bold text-green-600">
+                          {averageCorrectRate.toFixed(1)}%
+                        </p>
+                      </div>
+                      <BarChart3 className="w-8 h-8 text-green-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-purple-600">考试次数</p>
+                        <p className="text-3xl font-bold text-purple-600">{examResults.length}</p>
+                      </div>
+                      <Award className="w-8 h-8 text-purple-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-orange-600">反馈记录</p>
+                        <p className="text-3xl font-bold text-orange-600">{studentFeedback.length}</p>
+                      </div>
+                      <MessageSquare className="w-8 h-8 text-orange-500" />
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
 
-            {/* Statistics Panel */}
-            <div className="border-l bg-muted/30 p-6 overflow-y-auto">
-              <div className="space-y-6">
-                {/* Statistics Summary */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5" />
-                    学习概况
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 gap-3">
-                    <Card className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">平均分数</p>
-                          <p className="text-2xl font-bold">{averageScore.toFixed(1)}</p>
-                        </div>
-                        <Target className="w-8 h-8 text-accent" />
-                      </div>
-                    </Card>
-                    
-                    <Card className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">正确率</p>
-                          <p className="text-2xl font-bold">{averageCorrectRate.toFixed(1)}%</p>
-                        </div>
-                        <BookOpen className="w-8 h-8 text-primary" />
-                      </div>
-                    </Card>
-                    
-                    <Card className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">反馈记录</p>
-                          <p className="text-2xl font-bold">{studentFeedback.length}</p>
-                        </div>
-                        <MessageSquare className="w-8 h-8 text-secondary" />
-                      </div>
-                    </Card>
-                  </div>
-                </div>
-
-                {/* Recent Exams */}
-                {examResults.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="font-medium">最近考试</h4>
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {examResults.slice(0, 3).map(exam => (
-                        <Card key={exam.id} className="p-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium text-sm">{exam.exam_name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {new Date(exam.created_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <Badge variant={exam.total_score >= 80 ? "default" : exam.total_score >= 60 ? "secondary" : "destructive"}>
-                              {exam.total_score.toFixed(1)}分
-                            </Badge>
+            {/* Exam Results */}
+            <div className="lg:col-span-2 space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-primary" />
+                    考试成绩
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {examResults.length > 0 ? examResults.map(exam => (
+                      <Card key={exam.id} className="p-4 hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-foreground">{exam.exam_name}</h4>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(exam.created_at).toLocaleDateString()}
+                            </p>
                           </div>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Recent Feedback */}
-                {studentFeedback.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="font-medium">最近反馈</h4>
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {studentFeedback.slice(0, 3).map(feedback => (
-                        <Card key={feedback.id} className="p-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                {feedback.feedback_date}
-                              </p>
-                              {feedback.notes && (
-                                <p className="text-sm mt-1">{feedback.notes}</p>
-                              )}
-                            </div>
-                            <Badge 
-                              variant="outline"
-                              className={
-                                feedback.mood === 'happy' ? 'border-green-500 text-green-700' :
-                                feedback.mood === 'neutral' ? 'border-yellow-500 text-yellow-700' :
-                                feedback.mood === 'sad' ? 'border-red-500 text-red-700' :
-                                'border-purple-500 text-purple-700'
-                              }
-                            >
-                              {feedback.mood}
-                            </Badge>
+                          <Badge variant={exam.total_score >= 80 ? "default" : exam.total_score >= 60 ? "secondary" : "destructive"}>
+                            {exam.total_score.toFixed(1)}分
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>正确率</span>
+                            <span>{((exam.correct_count / exam.total_questions) * 100).toFixed(1)}%</span>
                           </div>
-                        </Card>
-                      ))}
-                    </div>
+                          <Progress 
+                            value={(exam.correct_count / exam.total_questions) * 100} 
+                            className="h-2"
+                          />
+                        </div>
+                      </Card>
+                    )) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>暂无考试记录</p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </CardContent>
+              </Card>
+            </div>
 
-                {/* Scoring Records */}
-                {scoringRecords.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="font-medium">评分记录</h4>
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {scoringRecords.slice(0, 3).map(record => (
-                        <Card key={record.id} className="p-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium text-sm">{record.category}</p>
-                              {record.notes && (
-                                <p className="text-xs text-muted-foreground mt-1">{record.notes}</p>
-                              )}
-                            </div>
-                            <Badge variant="secondary">
-                              {record.score}分
-                            </Badge>
+            {/* Feedback & Scoring */}
+            <div className="lg:col-span-2 space-y-4">
+              {/* Feedback */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-secondary" />
+                    学习反馈
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-48 overflow-y-auto">
+                    {studentFeedback.length > 0 ? studentFeedback.slice(0, 5).map(feedback => (
+                      <Card key={feedback.id} className="p-3 hover:shadow-sm transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="text-sm text-foreground">{feedback.notes || '无备注'}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                              <Calendar className="w-3 h-3" />
+                              {feedback.feedback_date}
+                            </p>
                           </div>
-                        </Card>
-                      ))}
-                    </div>
+                          <Badge className={getMoodColor(feedback.mood)}>
+                            {feedback.mood === 'happy' ? '😊' : feedback.mood === 'neutral' ? '😐' : '😔'} {feedback.mood}
+                          </Badge>
+                        </div>
+                      </Card>
+                    )) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">暂无反馈记录</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </CardContent>
+              </Card>
+
+              {/* Scoring Records */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Star className="w-5 h-5 text-accent" />
+                    评分记录
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-48 overflow-y-auto">
+                    {scoringRecords.length > 0 ? scoringRecords.slice(0, 5).map(record => (
+                      <Card key={record.id} className="p-3 hover:shadow-sm transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h5 className="font-medium text-foreground">{record.category}</h5>
+                            {record.notes && (
+                              <p className="text-sm text-muted-foreground mt-1">{record.notes}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(record.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="font-bold">
+                            {record.score}分
+                          </Badge>
+                        </div>
+                      </Card>
+                    )) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <Star className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">暂无评分记录</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
