@@ -31,12 +31,20 @@ interface StudentTag {
   description?: string;
 }
 
+interface CustomFieldValue {
+  id: string;
+  field_name: string;
+  field_type: string;
+  value: string;
+}
+
 const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [examResults, setExamResults] = useState<ExamResult[]>([]);
   const [scoringRecords, setScoringRecords] = useState<any[]>([]);
   const [studentTags, setStudentTags] = useState<StudentTag[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<CustomFieldValue[]>([]);
   const [loading, setLoading] = useState(true);
   
   const { feedbackRecords, getFeedbackByStudent } = useFeedbackData();
@@ -107,6 +115,30 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         } else {
           setStudentTags([]);
         }
+
+        // Load custom field values
+        const { data: fieldValuesData, error: fieldValuesError } = await supabase
+          .from('student_field_values')
+          .select(`
+            id,
+            value,
+            custom_fields!inner(
+              name,
+              type
+            )
+          `)
+          .eq('student_id', student.id);
+
+        if (fieldValuesError) throw fieldValuesError;
+        
+        const formattedFieldValues = (fieldValuesData || []).map(item => ({
+          id: item.id,
+          field_name: item.custom_fields.name,
+          field_type: item.custom_fields.type,
+          value: item.value || ''
+        }));
+        
+        setCustomFieldValues(formattedFieldValues);
 
         setLoading(false);
       } catch (error: any) {
@@ -256,8 +288,8 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-orange-600">标签数量</p>
-                      <p className="text-3xl font-bold text-orange-600">{studentTags.length}</p>
+                      <p className="text-sm font-medium text-orange-600">标签信息</p>
+                      <p className="text-3xl font-bold text-orange-600">{studentTags.length + customFieldValues.length}</p>
                     </div>
                     <Tag className="w-8 h-8 text-orange-500" />
                   </div>
@@ -265,39 +297,73 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
               </Card>
             </div>
 
-            {/* Student Tags */}
+            {/* Student Tags and Custom Fields */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Tag className="w-5 h-5 text-primary" />
-                  学生标签
+                  学生标签与自定义信息
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {studentTags.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {studentTags.map(tag => (
-                      <Badge 
-                        key={tag.id} 
-                        className="px-3 py-2 text-sm font-medium"
-                        style={{ 
-                          backgroundColor: `${tag.color}20`, 
-                          color: tag.color,
-                          borderColor: `${tag.color}40`
-                        }}
-                        variant="outline"
-                        title={tag.description || tag.name}
-                      >
-                        {tag.name}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Tag className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>暂无标签</p>
-                  </div>
-                )}
+                <div className="space-y-4">
+                  {/* Tags Section */}
+                  {studentTags.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">标签</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {studentTags.map(tag => (
+                          <Badge 
+                            key={`tag-${tag.id}`} 
+                            className="px-3 py-2 text-sm font-medium"
+                            style={{ 
+                              backgroundColor: `${tag.color}20`, 
+                              color: tag.color,
+                              borderColor: `${tag.color}40`
+                            }}
+                            variant="outline"
+                            title={tag.description || tag.name}
+                          >
+                            {tag.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Custom Fields Section */}
+                  {customFieldValues.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">自定义信息</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {customFieldValues.map(field => (
+                          <div 
+                            key={`field-${field.id}`} 
+                            className="p-3 bg-muted/50 rounded-lg border"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-foreground">{field.field_name}</p>
+                                <p className="text-sm text-muted-foreground mt-1">{field.value}</p>
+                              </div>
+                              <Badge variant="secondary" className="text-xs">
+                                {field.field_type}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Empty State */}
+                  {studentTags.length === 0 && customFieldValues.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Tag className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>暂无标签和自定义信息</p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
