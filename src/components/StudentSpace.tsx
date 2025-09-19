@@ -186,105 +186,124 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
           </div>
         </CardHeader>
 
-        <div className="flex-1 overflow-hidden p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
-            {/* Key Metrics */}
-            <div className="lg:col-span-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-blue-600">平均分数</p>
-                        <p className={`text-3xl font-bold ${getScoreColor(averageScore)}`}>
-                          {averageScore.toFixed(1)}
-                        </p>
-                      </div>
-                      <Target className="w-8 h-8 text-blue-500" />
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-green-600">正确率</p>
-                        <p className="text-3xl font-bold text-green-600">
-                          {averageCorrectRate.toFixed(1)}%
-                        </p>
-                      </div>
-                      <BarChart3 className="w-8 h-8 text-green-500" />
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-purple-600">考试次数</p>
-                        <p className="text-3xl font-bold text-purple-600">{examResults.length}</p>
-                      </div>
-                      <Award className="w-8 h-8 text-purple-500" />
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-orange-600">标签数量</p>
-                        <p className="text-3xl font-bold text-orange-600">{studentTags.length}</p>
-                      </div>
-                      <Tag className="w-8 h-8 text-orange-500" />
-                    </div>
-                  </CardContent>
-                </Card>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-7xl h-[95vh] flex flex-col">
+        <CardHeader className="flex-shrink-0 border-b bg-gradient-to-r from-primary/5 to-accent/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                <User className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-3xl font-bold">{student.name}</CardTitle>
+                <p className="text-lg text-muted-foreground flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  班级: {student.class}
+                </p>
               </div>
             </div>
+            <Button variant="ghost" size="sm" onClick={onClose} className="hover:bg-destructive/10">
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
+        </CardHeader>
 
-            {/* Student Tags */}
-            <div className="lg:col-span-4 mb-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Tag className="w-5 h-5 text-primary" />
-                    学生标签
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {studentTags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {studentTags.map(tag => (
-                        <Badge 
-                          key={tag.id} 
-                          className="px-3 py-2 text-sm font-medium"
-                          style={{ 
-                            backgroundColor: `${tag.color}20`, 
-                            color: tag.color,
-                            borderColor: `${tag.color}40`
-                          }}
-                          variant="outline"
-                          title={tag.description || tag.name}
-                        >
-                          {tag.name}
-                        </Badge>
-                      ))}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="space-y-6">
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-600">平均分数</p>
+                      <p className={`text-3xl font-bold ${getScoreColor(averageScore)}`}>
+                        {averageScore.toFixed(1)}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Tag className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>暂无标签</p>
+                    <Target className="w-8 h-8 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-green-600">正确率</p>
+                      <p className="text-3xl font-bold text-green-600">
+                        {averageCorrectRate.toFixed(1)}%
+                      </p>
                     </div>
-                  )}
+                    <BarChart3 className="w-8 h-8 text-green-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-purple-600">考试次数</p>
+                      <p className="text-3xl font-bold text-purple-600">{examResults.length}</p>
+                    </div>
+                    <Award className="w-8 h-8 text-purple-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-orange-600">标签数量</p>
+                      <p className="text-3xl font-bold text-orange-600">{studentTags.length}</p>
+                    </div>
+                    <Tag className="w-8 h-8 text-orange-500" />
+                  </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Exam Results */}
-            <div className="lg:col-span-2 space-y-4">
+            {/* Student Tags */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-primary" />
+                  学生标签
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {studentTags.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {studentTags.map(tag => (
+                      <Badge 
+                        key={tag.id} 
+                        className="px-3 py-2 text-sm font-medium"
+                        style={{ 
+                          backgroundColor: `${tag.color}20`, 
+                          color: tag.color,
+                          borderColor: `${tag.color}40`
+                        }}
+                        variant="outline"
+                        title={tag.description || tag.name}
+                      >
+                        {tag.name}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Tag className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>暂无标签</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Content Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Exam Results */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -293,7 +312,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
                     {examResults.length > 0 ? examResults.map(exam => (
                       <Card key={exam.id} className="p-4 hover:shadow-md transition-shadow">
                         <div className="flex justify-between items-start mb-2">
@@ -328,85 +347,87 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
                   </div>
                 </CardContent>
               </Card>
-            </div>
 
-            {/* Feedback & Scoring */}
-            <div className="lg:col-span-2 space-y-4">
-              {/* Feedback */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-secondary" />
-                    学习反馈
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-48 overflow-y-auto">
-                    {studentFeedback.length > 0 ? studentFeedback.slice(0, 5).map(feedback => (
-                      <Card key={feedback.id} className="p-3 hover:shadow-sm transition-shadow">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="text-sm text-foreground">{feedback.notes || '无备注'}</p>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                              <Calendar className="w-3 h-3" />
-                              {feedback.feedback_date}
-                            </p>
+              {/* Feedback & Scoring Combined */}
+              <div className="space-y-6">
+                {/* Feedback */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="w-5 h-5 text-secondary" />
+                      学习反馈
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 max-h-48 overflow-y-auto">
+                      {studentFeedback.length > 0 ? studentFeedback.slice(0, 10).map(feedback => (
+                        <Card key={feedback.id} className="p-3 hover:shadow-sm transition-shadow">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="text-sm text-foreground">{feedback.notes || '无备注'}</p>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                <Calendar className="w-3 h-3" />
+                                {feedback.feedback_date}
+                              </p>
+                            </div>
+                            <Badge className={getMoodColor(feedback.mood)}>
+                              {feedback.mood === 'happy' ? '😊' : feedback.mood === 'neutral' ? '😐' : '😔'} {feedback.mood}
+                            </Badge>
                           </div>
-                          <Badge className={getMoodColor(feedback.mood)}>
-                            {feedback.mood === 'happy' ? '😊' : feedback.mood === 'neutral' ? '😐' : '😔'} {feedback.mood}
-                          </Badge>
+                        </Card>
+                      )) : (
+                        <div className="text-center py-4 text-muted-foreground">
+                          <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">暂无反馈记录</p>
                         </div>
-                      </Card>
-                    )) : (
-                      <div className="text-center py-4 text-muted-foreground">
-                        <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">暂无反馈记录</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
 
-              {/* Scoring Records */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Star className="w-5 h-5 text-accent" />
-                    评分记录
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-48 overflow-y-auto">
-                    {scoringRecords.length > 0 ? scoringRecords.slice(0, 5).map(record => (
-                      <Card key={record.id} className="p-3 hover:shadow-sm transition-shadow">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h5 className="font-medium text-foreground">{record.category}</h5>
-                            {record.notes && (
-                              <p className="text-sm text-muted-foreground mt-1">{record.notes}</p>
-                            )}
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(record.created_at).toLocaleDateString()}
-                            </p>
+                {/* Scoring Records */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Star className="w-5 h-5 text-accent" />
+                      评分记录
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 max-h-48 overflow-y-auto">
+                      {scoringRecords.length > 0 ? scoringRecords.slice(0, 10).map(record => (
+                        <Card key={record.id} className="p-3 hover:shadow-sm transition-shadow">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <h5 className="font-medium text-foreground">{record.category}</h5>
+                              {record.notes && (
+                                <p className="text-sm text-muted-foreground mt-1">{record.notes}</p>
+                              )}
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(record.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="font-bold">
+                              {record.score}分
+                            </Badge>
                           </div>
-                          <Badge variant="outline" className="font-bold">
-                            {record.score}分
-                          </Badge>
+                        </Card>
+                      )) : (
+                        <div className="text-center py-4 text-muted-foreground">
+                          <Star className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">暂无评分记录</p>
                         </div>
-                      </Card>
-                    )) : (
-                      <div className="text-center py-4 text-muted-foreground">
-                        <Star className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">暂无评分记录</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </div>
         </div>
+      </Card>
+    </div>
       </Card>
     </div>
   );
