@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { X, User, BookOpen, MessageSquare, Target, Star, TrendingUp, Calendar, Award, BarChart3, Activity } from 'lucide-react';
+import { X, User, BookOpen, MessageSquare, Target, Star, TrendingUp, Calendar, Award, BarChart3, Activity, Tag } from 'lucide-react';
 import { Student } from '@/hooks/useStudentData';
 import { useFeedbackData } from '@/hooks/useFeedbackData';
 import { useToast } from '@/hooks/use-toast';
@@ -24,11 +24,19 @@ interface ExamResult {
   created_at: string;
 }
 
+interface StudentTag {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+}
+
 const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [examResults, setExamResults] = useState<ExamResult[]>([]);
   const [scoringRecords, setScoringRecords] = useState<any[]>([]);
+  const [studentTags, setStudentTags] = useState<StudentTag[]>([]);
   const [loading, setLoading] = useState(true);
   
   const { feedbackRecords, getFeedbackByStudent } = useFeedbackData();
@@ -76,6 +84,29 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
 
         if (scoringError) throw scoringError;
         setScoringRecords(scoringData || []);
+
+        // Load student tags
+        const { data: tagsData, error: tagsError } = await supabase
+          .from('student_tags')
+          .select('tag_id')
+          .eq('student_id', student.id);
+
+        if (tagsError) throw tagsError;
+        
+        if (tagsData && tagsData.length > 0) {
+          const tagIds = tagsData.map(item => item.tag_id);
+          
+          const { data: tagDetails, error: tagDetailsError } = await supabase
+            .from('tags')
+            .select('id, name, color, description')
+            .in('id', tagIds)
+            .eq('user_id', user.id);
+            
+          if (tagDetailsError) throw tagDetailsError;
+          setStudentTags(tagDetails || []);
+        } else {
+          setStudentTags([]);
+        }
 
         setLoading(false);
       } catch (error: any) {
@@ -204,14 +235,52 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-orange-600">反馈记录</p>
-                        <p className="text-3xl font-bold text-orange-600">{studentFeedback.length}</p>
+                        <p className="text-sm font-medium text-orange-600">标签数量</p>
+                        <p className="text-3xl font-bold text-orange-600">{studentTags.length}</p>
                       </div>
-                      <MessageSquare className="w-8 h-8 text-orange-500" />
+                      <Tag className="w-8 h-8 text-orange-500" />
                     </div>
                   </CardContent>
                 </Card>
               </div>
+            </div>
+
+            {/* Student Tags */}
+            <div className="lg:col-span-4 mb-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Tag className="w-5 h-5 text-primary" />
+                    学生标签
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {studentTags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {studentTags.map(tag => (
+                        <Badge 
+                          key={tag.id} 
+                          className="px-3 py-2 text-sm font-medium"
+                          style={{ 
+                            backgroundColor: `${tag.color}20`, 
+                            color: tag.color,
+                            borderColor: `${tag.color}40`
+                          }}
+                          variant="outline"
+                          title={tag.description || tag.name}
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Tag className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>暂无标签</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
             {/* Exam Results */}
