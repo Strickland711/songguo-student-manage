@@ -955,50 +955,78 @@ const StudentDashboard = () => {
         </Tabs>
       </div>
 
-      {/* Edit Student Modal would go here */}
+      {/* Edit Student Modal - Optimized for better display */}
       {editingStudent && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
+          <Card className="w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <CardHeader className="flex-shrink-0">
               <CardTitle>编辑学生信息</CardTitle>
+              <CardDescription>修改学生的基本信息和自定义标签</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>姓名 *</Label>
-                <Input
-                  value={editingStudent.name}
-                  onChange={(e) => setEditingStudent({...editingStudent, name: e.target.value})}
-                />
-              </div>
-               <div>
-                 <Label>班级 *</Label>
-                 <Input
-                   value={editingStudent.class}
-                   onChange={(e) => setEditingStudent({...editingStudent, class: e.target.value})}
-                 />
-               </div>
-              {customFields.map(field => (
-                <div key={field.id}>
-                  <Label>{field.name}</Label>
+            <CardContent className="flex-1 overflow-y-auto space-y-4">
+              {/* 基本信息区域 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                <div>
+                  <Label htmlFor="edit-name">姓名 *</Label>
                   <Input
-                    type={field.type}
-                    value={editingStudent[field.name] || ''}
-                    onChange={(e) => setEditingStudent({
-                      ...editingStudent,
-                      [field.name]: e.target.value
-                    })}
+                    id="edit-name"
+                    value={editingStudent.name}
+                    onChange={(e) => setEditingStudent({...editingStudent, name: e.target.value})}
+                    placeholder="请输入学生姓名"
                   />
                 </div>
-              ))}
-              <div className="flex gap-2 pt-4">
+                <div>
+                  <Label htmlFor="edit-class">班级</Label>
+                  <Input
+                    id="edit-class"
+                    value={editingStudent.class}
+                    onChange={(e) => setEditingStudent({...editingStudent, class: e.target.value})}
+                    placeholder="请输入班级名称"
+                  />
+                </div>
+              </div>
+
+              {/* 自定义标签区域 */}
+              {customFields.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-3">自定义标签</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {customFields.map(field => (
+                      <div key={field.id}>
+                        <Label htmlFor={`edit-${field.id}`}>
+                          {field.name}
+                          <Badge variant="secondary" className="ml-1 text-xs">{field.type}</Badge>
+                        </Label>
+                        <Input
+                          id={`edit-${field.id}`}
+                          type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+                          value={editingStudent[field.name] || ''}
+                          onChange={(e) => setEditingStudent({
+                            ...editingStudent,
+                            [field.name]: e.target.value
+                          })}
+                          placeholder={`请输入${field.name}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+            
+            {/* 操作按钮区域 */}
+            <div className="flex-shrink-0 p-6 pt-0">
+              <div className="flex gap-3">
                 <Button onClick={() => updateStudent(editingStudent)} className="flex-1">
-                  保存
+                  <Edit className="w-4 h-4 mr-2" />
+                  保存修改
                 </Button>
                 <Button variant="outline" onClick={() => setEditingStudent(null)} className="flex-1">
+                  <X className="w-4 h-4 mr-2" />
                   取消
                 </Button>
               </div>
-            </CardContent>
+            </div>
           </Card>
         </div>
       )}
