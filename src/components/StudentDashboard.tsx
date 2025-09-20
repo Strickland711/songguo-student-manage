@@ -299,7 +299,7 @@ const StudentDashboard = () => {
     if (!newFieldName.trim()) return;
     
     const newField: CustomField = {
-      id: `field-${Date.now()}`,
+      // Don't set id, let database generate UUID
       name: newFieldName,
       type: newFieldType,
     };
@@ -314,7 +314,11 @@ const StudentDashboard = () => {
         description: `已添加自定义标签: ${newFieldName}`,
       });
     } catch (error) {
-      // Error is already handled in saveCustomFields
+      toast({
+        title: "保存标签失败",
+        description: "添加标签时发生错误，请重试",
+        variant: "destructive",
+      });
     }
   };
 

@@ -49,12 +49,13 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
   
   const { feedbackRecords, getFeedbackByStudent } = useFeedbackData();
 
-  // Load student data
+  // Load student data with error handling and refresh capability
   useEffect(() => {
     if (!user || !student.id) return;
     
     const loadStudentData = async () => {
       try {
+        setLoading(true);
         // Load exam results
         const { data: examData, error: examError } = await supabase
           .from('exam_results')
