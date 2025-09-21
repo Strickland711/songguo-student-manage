@@ -277,8 +277,8 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-purple-600">考试次数</p>
-                      <p className="text-3xl font-bold text-purple-600">{examResults.length}</p>
+                      <p className="text-sm font-medium text-purple-600">反馈次数</p>
+                      <p className="text-3xl font-bold text-purple-600">{studentFeedback.length}</p>
                     </div>
                     <Award className="w-8 h-8 text-purple-500" />
                   </div>

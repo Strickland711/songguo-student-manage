@@ -397,7 +397,18 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
 
               {/* 备注 */}
               <div>
-                <label className="text-sm font-medium mb-2 block">反馈备注</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">反馈备注</label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={true}
+                    className="text-xs opacity-50"
+                  >
+                    🤖 AI 生成话术 (即将上线)
+                  </Button>
+                </div>
                 <Textarea
                   placeholder="记录具体的反馈内容和沟通情况..."
                   value={feedbackNotes}

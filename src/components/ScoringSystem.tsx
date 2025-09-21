@@ -1464,8 +1464,9 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                     return (
                       <div className="overflow-x-auto">
                         <table className="w-full border-collapse">
-                          <thead>
+                           <thead>
                             <tr className="border-b-2 border-gray-200">
+                              <th className="text-center py-4 px-4 font-medium">排名</th>
                               <th className="text-left py-4 px-4 font-medium">姓名</th>
                               <th className="text-left py-4 px-4 font-medium">班级</th>
                               <th className="text-center py-4 px-4 font-medium">总分</th>
@@ -1480,14 +1481,30 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                               ))}
                             </tr>
                           </thead>
-                          <tbody>
-                            {results.map((result, index) => {
+                           <tbody>
+                            {results
+                              .sort((a, b) => b.total_score - a.total_score) // 按总分降序排列
+                              .map((result, index) => {
                               const student = students.find(s => s.id === result.student_id);
                               const totalPossible = exam.scores.reduce((sum, s) => sum + s, 0);
                               const accuracyRate = ((result.correct_count / exam.total_questions) * 100).toFixed(1);
+                              const rank = index + 1; // 排名从1开始
                               
                               return (
                                 <tr key={result.id} className={`border-b ${index % 2 === 0 ? 'bg-gray-50/50' : 'bg-white'}`}>
+                                  <td className="text-center py-4 px-4">
+                                    <Badge 
+                                      variant="secondary" 
+                                      className={`
+                                        ${rank === 1 ? 'bg-yellow-500 text-white' : 
+                                          rank === 2 ? 'bg-gray-400 text-white' : 
+                                          rank === 3 ? 'bg-amber-600 text-white' : 
+                                          'bg-gray-200 text-gray-700'}
+                                      `}
+                                    >
+                                      {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
+                                    </Badge>
+                                  </td>
                                   <td className="py-4 px-4 font-medium">{student?.name}</td>
                                   <td className="py-4 px-4 text-muted-foreground">{student?.class}</td>
                                   <td className="text-center py-4 px-4">
