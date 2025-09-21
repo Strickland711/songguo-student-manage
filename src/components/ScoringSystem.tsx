@@ -26,8 +26,12 @@ import {
   Undo,
   ArrowRight,
   Upload,
-  Map
+  Map,
+  PieChart,
+  Eye,
+  TrendingUp
 } from 'lucide-react';
+import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Pie } from 'recharts';
 import * as XLSX from 'xlsx';
 import { Student } from '@/hooks/useStudentData';
 
@@ -107,6 +111,8 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   const [selectedHistoryExam, setSelectedHistoryExam] = useState<string | null>(null);
   const [showStudentDetails, setShowStudentDetails] = useState<{ [examId: string]: boolean }>({});
   const [examDetailView, setExamDetailView] = useState<string | null>(null);
+  const [questionDetailView, setQuestionDetailView] = useState<{ examId: string; questionIndex: number } | null>(null);
+  const [showErrorDistribution, setShowErrorDistribution] = useState<string | null>(null);
   
   // 登分时学生选择状态
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -598,6 +604,53 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     if (results.length === 0) return 0;
     const total = results.reduce((sum, r) => sum + r.total_score, 0);
     return (total / results.length).toFixed(1);
+  };
+
+  // 获取题目统计信息
+  const getQuestionStats = (examId: string, questionIndex: number) => {
+    const results = getExamResults(examId);
+    if (results.length === 0) return { correctCount: 0, totalCount: 0, correctRate: 0, students: [] };
+    
+    const studentAnswers = results.map(result => {
+      const student = students.find(s => s.id === result.student_id);
+      const answer = result.answers.find(a => a.questionIndex === questionIndex);
+      return {
+        student,
+        answer: answer || { isCorrect: false, score: 0 },
+        totalScore: result.total_score
+      };
+    }).filter(item => item.student);
+    
+    const correctCount = studentAnswers.filter(item => item.answer.isCorrect).length;
+    const correctRate = (correctCount / studentAnswers.length * 100);
+    
+    return {
+      correctCount,
+      totalCount: studentAnswers.length,
+      correctRate: Math.round(correctRate * 10) / 10,
+      students: studentAnswers
+    };
+  };
+
+  // 获取错题分布数据
+  const getErrorDistributionData = (examId: string) => {
+    const exam = exams.find(e => e.id === examId);
+    if (!exam) return [];
+    
+    const results = getExamResults(examId);
+    if (results.length === 0) return [];
+    
+    return Array.from({ length: exam.total_questions }, (_, i) => {
+      const stats = getQuestionStats(examId, i);
+      return {
+        name: `第${i + 1}题`,
+        正确率: stats.correctRate,
+        错误率: 100 - stats.correctRate,
+        正确人数: stats.correctCount,
+        总人数: stats.totalCount,
+        分值: exam.scores[i]
+      };
+    });
   };
 
   const deleteExam = async (examId: string) => {
@@ -1424,6 +1477,14 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
+                        onClick={() => setShowErrorDistribution(examDetailView)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <PieChart className="w-4 h-4 mr-2" />
+                        错题分布
+                      </Button>
+                      <Button
                         onClick={() => exportResults(examDetailView)}
                         variant="outline"
                         size="sm"
@@ -1472,11 +1533,17 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                               <th className="text-center py-4 px-4 font-medium">总分</th>
                               <th className="text-center py-4 px-4 font-medium">正确率</th>
                               {Array.from({ length: exam.total_questions }, (_, i) => (
-                                <th key={i} className="text-center py-4 px-2 font-medium min-w-[60px]">
-                                  第{i + 1}题<br />
-                                  <span className="text-xs font-normal text-muted-foreground">
-                                    ({exam.scores[i]}分)
-                                  </span>
+                                <th key={i} className="text-center py-4 px-2 font-medium min-w-[60px] cursor-pointer hover:bg-blue-50 transition-colors group"
+                                    onClick={() => setQuestionDetailView({ examId: examDetailView, questionIndex: i })}>
+                                  <div className="flex flex-col items-center gap-1">
+                                    <div className="flex items-center gap-1">
+                                      <span>第{i + 1}题</span>
+                                      <Eye className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <span className="text-xs font-normal text-muted-foreground">
+                                      ({exam.scores[i]}分)
+                                    </span>
+                                  </div>
                                 </th>
                               ))}
                             </tr>
@@ -2072,6 +2139,123 @@ const ResultsView = ({
           </CardContent>
         )}
       </Card>
+
+      {/* 题目详情对话框 */}
+      <Dialog open={!!questionDetailView} onOpenChange={() => setQuestionDetailView(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {questionDetailView && (() => {
+                const exam = exams.find(e => e.id === questionDetailView.examId);
+                return `${exam?.name} - 第${questionDetailView.questionIndex + 1}题详情`;
+              })()}
+            </DialogTitle>
+          </DialogHeader>
+          {questionDetailView && (() => {
+            const exam = exams.find(e => e.id === questionDetailView.examId);
+            const stats = getQuestionStats(questionDetailView.examId, questionDetailView.questionIndex);
+            
+            return (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-green-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-600">{stats.correctCount}</div>
+                    <div className="text-sm text-green-700">正确人数</div>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-red-600">{stats.totalCount - stats.correctCount}</div>
+                    <div className="text-sm text-red-700">错误人数</div>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-600">{stats.correctRate}%</div>
+                    <div className="text-sm text-blue-700">正确率</div>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-gray-600">{exam?.scores[questionDetailView.questionIndex]}</div>
+                    <div className="text-sm text-gray-700">题目分值</div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">学生答题情况</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b-2 border-gray-200">
+                          <th className="text-left py-3 px-4 font-medium">排名</th>
+                          <th className="text-left py-3 px-4 font-medium">姓名</th>
+                          <th className="text-left py-3 px-4 font-medium">班级</th>
+                          <th className="text-center py-3 px-4 font-medium">答题结果</th>
+                          <th className="text-center py-3 px-4 font-medium">得分</th>
+                          <th className="text-center py-3 px-4 font-medium">总分</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.students.sort((a, b) => b.totalScore - a.totalScore).map((item, index) => (
+                          <tr key={item.student?.id} className={`border-b ${index % 2 === 0 ? 'bg-gray-50/50' : 'bg-white'}`}>
+                            <td className="py-3 px-4"><Badge variant="secondary">#{index + 1}</Badge></td>
+                            <td className="py-3 px-4 font-medium">{item.student?.name}</td>
+                            <td className="py-3 px-4 text-muted-foreground">{item.student?.class}</td>
+                            <td className="text-center py-3 px-4">
+                              <Badge className={item.answer.isCorrect ? 'bg-green-500' : 'bg-red-500'}>
+                                {item.answer.isCorrect ? '正确' : '错误'}
+                              </Badge>
+                            </td>
+                            <td className="text-center py-3 px-4 font-medium">
+                              {item.answer.score}/{exam?.scores[questionDetailView.questionIndex]}
+                            </td>
+                            <td className="text-center py-3 px-4 text-muted-foreground">{item.totalScore}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* 错题分布对话框 */}
+      <Dialog open={!!showErrorDistribution} onOpenChange={() => setShowErrorDistribution(null)}>
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {showErrorDistribution && (() => {
+                const exam = exams.find(e => e.id === showErrorDistribution);
+                return `${exam?.name} - 错题分布分析`;
+              })()}
+            </DialogTitle>
+          </DialogHeader>
+          {showErrorDistribution && (() => {
+            const distributionData = getErrorDistributionData(showErrorDistribution);
+            return (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-600">{distributionData.length}</div>
+                    <div className="text-sm text-blue-700">总题数</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white p-4 rounded-lg border">
+                    <h3 className="text-lg font-semibold mb-4">各题正确率对比</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={distributionData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip formatter={(value: any) => [`${value}%`, '正确率']} />
+                        <Bar dataKey="正确率" fill="#10B981" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
