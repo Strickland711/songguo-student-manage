@@ -108,6 +108,12 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   const [showStudentDetails, setShowStudentDetails] = useState<{ [examId: string]: boolean }>({});
   const [examDetailView, setExamDetailView] = useState<string | null>(null);
   
+  // 题目详情状态
+  const [questionDetailView, setQuestionDetailView] = useState<{
+    examId: string;
+    questionIndex: number;
+  } | null>(null);
+  
   // 登分时学生选择状态
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
@@ -1650,6 +1656,190 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
           </DialogContent>
         </Dialog>
 
+        {/* 题目详情对话框 */}
+        <Dialog open={!!questionDetailView} onOpenChange={() => setQuestionDetailView(null)}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5" />
+                {questionDetailView && (() => {
+                  const exam = exams.find(e => e.id === questionDetailView.examId);
+                  return `${exam?.name} - 第${questionDetailView.questionIndex + 1}题详情`;
+                })()}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {questionDetailView && (() => {
+              const exam = exams.find(e => e.id === questionDetailView.examId);
+              const results = getExamResults(questionDetailView.examId);
+              const questionIndex = questionDetailView.questionIndex;
+              
+              // 计算该题目的统计信息
+              const questionStats = results.map(result => {
+                const student = students.find(s => s.id === result.student_id);
+                const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === questionIndex);
+                return {
+                  student,
+                  answer,
+                  isCorrect: answer?.isCorrect || false,
+                  score: answer?.score || 0
+                };
+              });
+              
+              const correctCount = questionStats.filter(stat => stat.isCorrect).length;
+              const totalCount = questionStats.length;
+              const correctRate = totalCount > 0 ? ((correctCount / totalCount) * 100).toFixed(1) : '0';
+              const maxScore = exam?.scores[questionIndex] || 0;
+              const averageScore = totalCount > 0 
+                ? (questionStats.reduce((sum, stat) => sum + stat.score, 0) / totalCount).toFixed(1)
+                : '0';
+              
+              return (
+                <div className="space-y-6">
+                  {/* 题目统计概览 */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-green-600">{correctRate}%</div>
+                        <div className="text-sm text-muted-foreground">正确率</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-blue-600">{correctCount}/{totalCount}</div>
+                        <div className="text-sm text-muted-foreground">正确人数</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-purple-600">{averageScore}</div>
+                        <div className="text-sm text-muted-foreground">平均分</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-orange-600">{maxScore}</div>
+                        <div className="text-sm text-muted-foreground">满分</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* 学生答题详情 */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">学生答题情况</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b bg-gray-50">
+                            <th className="text-left py-3 px-4 font-medium">姓名</th>
+                            <th className="text-left py-3 px-4 font-medium">班级</th>
+                            <th className="text-center py-3 px-4 font-medium">答题结果</th>
+                            <th className="text-center py-3 px-4 font-medium">得分</th>
+                            <th className="text-center py-3 px-4 font-medium">状态</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {questionStats
+                            .sort((a, b) => {
+                              // 按正确/错误分组，然后按得分降序排列
+                              if (a.isCorrect !== b.isCorrect) {
+                                return a.isCorrect ? -1 : 1;
+                              }
+                              return b.score - a.score;
+                            })
+                            .map((stat, index) => (
+                            <tr key={index} className="border-b hover:bg-gray-50">
+                              <td className="py-3 px-4 font-medium">{stat.student?.name || '未知学生'}</td>
+                              <td className="py-3 px-4 text-muted-foreground">{stat.student?.class || '-'}</td>
+                              <td className="text-center py-3 px-4">
+                                <div className="flex justify-center">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm ${
+                                    stat.isCorrect ? 'bg-green-500' : 'bg-red-500'
+                                  }`}>
+                                    {stat.isCorrect ? '✓' : '✗'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="text-center py-3 px-4">
+                                <Badge variant="secondary" className={`${
+                                  stat.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {stat.score}/{maxScore}
+                                </Badge>
+                              </td>
+                              <td className="text-center py-3 px-4">
+                                <Badge variant={stat.isCorrect ? "default" : "destructive"}>
+                                  {stat.isCorrect ? '正确' : '错误'}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 正确率分析 */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">答题分析</h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">正确答题学生</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {questionStats
+                              .filter(stat => stat.isCorrect)
+                              .map((stat, index) => (
+                              <div key={index} className="flex items-center justify-between p-2 bg-green-50 rounded">
+                                <span className="text-sm font-medium">{stat.student?.name}</span>
+                                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                  {stat.score}分
+                                </Badge>
+                              </div>
+                            ))}
+                            {questionStats.filter(stat => stat.isCorrect).length === 0 && (
+                              <div className="text-center text-muted-foreground py-4">
+                                暂无正确答题学生
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">错误答题学生</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {questionStats
+                              .filter(stat => !stat.isCorrect)
+                              .map((stat, index) => (
+                              <div key={index} className="flex items-center justify-between p-2 bg-red-50 rounded">
+                                <span className="text-sm font-medium">{stat.student?.name}</span>
+                                <Badge variant="secondary" className="bg-red-100 text-red-800">
+                                  {stat.score}分
+                                </Badge>
+                              </div>
+                            ))}
+                            {questionStats.filter(stat => !stat.isCorrect).length === 0 && (
+                              <div className="text-center text-muted-foreground py-4">
+                                所有学生都答对了！
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+
         {/* Excel列映射配置对话框 */}
         <Dialog open={showExcelMapping} onOpenChange={setShowExcelMapping}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -1811,6 +2001,190 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* 题目详情对话框 */}
+        <Dialog open={!!questionDetailView} onOpenChange={() => setQuestionDetailView(null)}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5" />
+                {questionDetailView && (() => {
+                  const exam = exams.find(e => e.id === questionDetailView.examId);
+                  return `${exam?.name} - 第${questionDetailView.questionIndex + 1}题详情`;
+                })()}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {questionDetailView && (() => {
+              const exam = exams.find(e => e.id === questionDetailView.examId);
+              const results = getExamResults(questionDetailView.examId);
+              const questionIndex = questionDetailView.questionIndex;
+              
+              // 计算该题目的统计信息
+              const questionStats = results.map(result => {
+                const student = students.find(s => s.id === result.student_id);
+                const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === questionIndex);
+                return {
+                  student,
+                  answer,
+                  isCorrect: answer?.isCorrect || false,
+                  score: answer?.score || 0
+                };
+              });
+              
+              const correctCount = questionStats.filter(stat => stat.isCorrect).length;
+              const totalCount = questionStats.length;
+              const correctRate = totalCount > 0 ? ((correctCount / totalCount) * 100).toFixed(1) : '0';
+              const maxScore = exam?.scores[questionIndex] || 0;
+              const averageScore = totalCount > 0 
+                ? (questionStats.reduce((sum, stat) => sum + stat.score, 0) / totalCount).toFixed(1)
+                : '0';
+              
+              return (
+                <div className="space-y-6">
+                  {/* 题目统计概览 */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-green-600">{correctRate}%</div>
+                        <div className="text-sm text-muted-foreground">正确率</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-blue-600">{correctCount}/{totalCount}</div>
+                        <div className="text-sm text-muted-foreground">正确人数</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-purple-600">{averageScore}</div>
+                        <div className="text-sm text-muted-foreground">平均分</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-orange-600">{maxScore}</div>
+                        <div className="text-sm text-muted-foreground">满分</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* 学生答题详情 */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">学生答题情况</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b bg-gray-50">
+                            <th className="text-left py-3 px-4 font-medium">姓名</th>
+                            <th className="text-left py-3 px-4 font-medium">班级</th>
+                            <th className="text-center py-3 px-4 font-medium">答题结果</th>
+                            <th className="text-center py-3 px-4 font-medium">得分</th>
+                            <th className="text-center py-3 px-4 font-medium">状态</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {questionStats
+                            .sort((a, b) => {
+                              // 按正确/错误分组，然后按得分降序排列
+                              if (a.isCorrect !== b.isCorrect) {
+                                return a.isCorrect ? -1 : 1;
+                              }
+                              return b.score - a.score;
+                            })
+                            .map((stat, index) => (
+                            <tr key={index} className="border-b hover:bg-gray-50">
+                              <td className="py-3 px-4 font-medium">{stat.student?.name || '未知学生'}</td>
+                              <td className="py-3 px-4 text-muted-foreground">{stat.student?.class || '-'}</td>
+                              <td className="text-center py-3 px-4">
+                                <div className="flex justify-center">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm ${
+                                    stat.isCorrect ? 'bg-green-500' : 'bg-red-500'
+                                  }`}>
+                                    {stat.isCorrect ? '✓' : '✗'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="text-center py-3 px-4">
+                                <Badge variant="secondary" className={`${
+                                  stat.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {stat.score}/{maxScore}
+                                </Badge>
+                              </td>
+                              <td className="text-center py-3 px-4">
+                                <Badge variant={stat.isCorrect ? "default" : "destructive"}>
+                                  {stat.isCorrect ? '正确' : '错误'}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 正确率分析 */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">答题分析</h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">正确答题学生</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {questionStats
+                              .filter(stat => stat.isCorrect)
+                              .map((stat, index) => (
+                              <div key={index} className="flex items-center justify-between p-2 bg-green-50 rounded">
+                                <span className="text-sm font-medium">{stat.student?.name}</span>
+                                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                  {stat.score}分
+                                </Badge>
+                              </div>
+                            ))}
+                            {questionStats.filter(stat => stat.isCorrect).length === 0 && (
+                              <div className="text-center text-muted-foreground py-4">
+                                暂无正确答题学生
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">错误答题学生</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {questionStats
+                              .filter(stat => !stat.isCorrect)
+                              .map((stat, index) => (
+                              <div key={index} className="flex items-center justify-between p-2 bg-red-50 rounded">
+                                <span className="text-sm font-medium">{stat.student?.name}</span>
+                                <Badge variant="secondary" className="bg-red-100 text-red-800">
+                                  {stat.score}分
+                                </Badge>
+                              </div>
+                            ))}
+                            {questionStats.filter(stat => !stat.isCorrect).length === 0 && (
+                              <div className="text-center text-muted-foreground py-4">
+                                所有学生都答对了！
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </DialogContent>
         </Dialog>
       </div>
