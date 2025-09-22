@@ -26,8 +26,10 @@ import {
   Undo,
   ArrowRight,
   Upload,
-  Map
+  Map,
+  PieChart
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import * as XLSX from 'xlsx';
 import { Student } from '@/hooks/useStudentData';
 
@@ -113,6 +115,9 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     examId: string;
     questionIndex: number;
   } | null>(null);
+  
+  // 错题分布状态
+  const [showErrorDistribution, setShowErrorDistribution] = useState<string | null>(null);
   
   // 登分时学生选择状态
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -1477,14 +1482,20 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                               <th className="text-left py-4 px-4 font-medium">班级</th>
                               <th className="text-center py-4 px-4 font-medium">总分</th>
                               <th className="text-center py-4 px-4 font-medium">正确率</th>
-                              {Array.from({ length: exam.total_questions }, (_, i) => (
-                                <th key={i} className="text-center py-4 px-2 font-medium min-w-[60px]">
-                                  第{i + 1}题<br />
-                                  <span className="text-xs font-normal text-muted-foreground">
-                                    ({exam.scores[i]}分)
-                                  </span>
-                                </th>
-                              ))}
+                               {Array.from({ length: exam.total_questions }, (_, i) => (
+                                 <th key={i} className="text-center py-4 px-2 font-medium min-w-[60px]">
+                                   <Button
+                                     variant="ghost"
+                                     className="text-sm font-medium hover:bg-blue-50 hover:text-blue-600 p-2 h-auto flex flex-col items-center gap-1"
+                                     onClick={() => setQuestionDetailView({ examId: exam.id!, questionIndex: i })}
+                                   >
+                                     <span>第{i + 1}题</span>
+                                     <span className="text-xs font-normal text-muted-foreground">
+                                       ({exam.scores[i]}分)
+                                     </span>
+                                   </Button>
+                                 </th>
+                               ))}
                             </tr>
                           </thead>
                            <tbody>
@@ -2182,6 +2193,233 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                       </Card>
                     </div>
                   </div>
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+
+        {/* 错题分布对话框 */}
+        <Dialog open={!!showErrorDistribution} onOpenChange={() => setShowErrorDistribution(null)}>
+          <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <PieChart className="w-5 h-5" />
+                {showErrorDistribution && (() => {
+                  const exam = exams.find(e => e.id === showErrorDistribution);
+                  return `${exam?.name} - 错题分布分析`;
+                })()}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {showErrorDistribution && (() => {
+              const exam = exams.find(e => e.id === showErrorDistribution);
+              const results = getExamResults(showErrorDistribution);
+              
+              if (!exam || results.length === 0) {
+                return (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <PieChart className="w-12 h-12 mx-auto mb-2" />
+                    <p>该考试暂无成绩记录</p>
+                  </div>
+                );
+              }
+              
+              // 计算每道题的正确率数据
+              const questionAnalysis = Array.from({ length: exam.total_questions }, (_, questionIndex) => {
+                const questionStats = results.map(result => {
+                  const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === questionIndex);
+                  return answer?.isCorrect || false;
+                });
+                
+                const correctCount = questionStats.filter(isCorrect => isCorrect).length;
+                const totalCount = questionStats.length;
+                const correctRate = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
+                const errorRate = 100 - correctRate;
+                
+                return {
+                  question: `第${questionIndex + 1}题`,
+                  questionIndex: questionIndex + 1,
+                  correctRate: correctRate,
+                  errorRate: errorRate,
+                  correctCount,
+                  totalCount,
+                  maxScore: exam.scores[questionIndex] || 0
+                };
+              });
+              
+              // 为柱状图准备数据，使用不同颜色
+              const chartColors = [
+                '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', 
+                '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'
+              ];
+              
+              return (
+                <div className="space-y-6">
+                  {/* 统计概览 */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {questionAnalysis.length}
+                        </div>
+                        <div className="text-sm text-muted-foreground">题目总数</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-green-600">
+                          {(questionAnalysis.reduce((sum, q) => sum + q.correctRate, 0) / questionAnalysis.length).toFixed(1)}%
+                        </div>
+                        <div className="text-sm text-muted-foreground">平均正确率</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-red-600">
+                          {questionAnalysis.filter(q => q.correctRate < 60).length}
+                        </div>
+                        <div className="text-sm text-muted-foreground">难题数量 (&lt;60%)</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4 text-center">
+                        <div className="text-2xl font-bold text-purple-600">
+                          {results.length}
+                        </div>
+                        <div className="text-sm text-muted-foreground">参与人数</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* 正确率柱状图 */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>各题目正确率对比</CardTitle>
+                      <CardDescription>
+                        展示每道题目的正确率，红色表示错误率较高的题目
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={questionAnalysis} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="question" 
+                              tick={{ fontSize: 12 }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={60}
+                            />
+                            <YAxis 
+                              domain={[0, 100]}
+                              tick={{ fontSize: 12 }}
+                              label={{ value: '正确率 (%)', angle: -90, position: 'insideLeft' }}
+                            />
+                            <Tooltip 
+                              formatter={(value: number) => [`${value.toFixed(1)}%`, '正确率']}
+                              labelFormatter={(label) => `题目: ${label}`}
+                            />
+                            <Bar dataKey="correctRate" name="正确率">
+                              {questionAnalysis.map((entry, index) => (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={entry.correctRate >= 80 ? '#22c55e' : 
+                                        entry.correctRate >= 60 ? '#eab308' : 
+                                        '#ef4444'} 
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* 详细数据表格 */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>题目详细统计</CardTitle>
+                      <CardDescription>
+                        点击题目可查看详细答题情况
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b bg-gray-50">
+                              <th className="text-left py-3 px-4 font-medium">题目</th>
+                              <th className="text-center py-3 px-4 font-medium">满分</th>
+                              <th className="text-center py-3 px-4 font-medium">正确人数</th>
+                              <th className="text-center py-3 px-4 font-medium">错误人数</th>
+                              <th className="text-center py-3 px-4 font-medium">正确率</th>
+                              <th className="text-center py-3 px-4 font-medium">难度等级</th>
+                              <th className="text-center py-3 px-4 font-medium">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {questionAnalysis
+                              .sort((a, b) => a.correctRate - b.correctRate) // 按正确率升序排列，错误率高的在前
+                              .map((question, index) => (
+                              <tr key={index} className="border-b hover:bg-gray-50">
+                                <td className="py-3 px-4 font-medium">{question.question}</td>
+                                <td className="text-center py-3 px-4">
+                                  <Badge variant="outline">{question.maxScore}分</Badge>
+                                </td>
+                                <td className="text-center py-3 px-4 text-green-600 font-medium">
+                                  {question.correctCount}
+                                </td>
+                                <td className="text-center py-3 px-4 text-red-600 font-medium">
+                                  {question.totalCount - question.correctCount}
+                                </td>
+                                <td className="text-center py-3 px-4">
+                                  <Badge 
+                                    variant="secondary" 
+                                    className={`${
+                                      question.correctRate >= 80 ? 'bg-green-100 text-green-800' :
+                                      question.correctRate >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                      'bg-red-100 text-red-800'
+                                    }`}
+                                  >
+                                    {question.correctRate.toFixed(1)}%
+                                  </Badge>
+                                </td>
+                                <td className="text-center py-3 px-4">
+                                  <Badge 
+                                    variant={
+                                      question.correctRate >= 80 ? "default" :
+                                      question.correctRate >= 60 ? "secondary" : 
+                                      "destructive"
+                                    }
+                                  >
+                                    {question.correctRate >= 80 ? '简单' :
+                                     question.correctRate >= 60 ? '中等' : '困难'}
+                                  </Badge>
+                                </td>
+                                <td className="text-center py-3 px-4">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setShowErrorDistribution(null);
+                                      setQuestionDetailView({ 
+                                        examId: showErrorDistribution, 
+                                        questionIndex: question.questionIndex - 1 
+                                      });
+                                    }}
+                                  >
+                                    查看详情
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               );
             })()}
