@@ -1591,59 +1591,37 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                             : '0';
                           
                           return (
-                            <Card key={exam.id} className="hover:shadow-md transition-shadow">
-                              <CardContent className="p-6">
-                                <div className="space-y-4">
-                                  <div>
-                                    <h3 className="font-semibold text-lg mb-2">{exam.name}</h3>
-                                    <div className="space-y-2 text-sm text-muted-foreground">
-                                      <div className="flex items-center gap-2">
-                                        <BarChart3 className="w-4 h-4" />
-                                        <span>平均分: {averageScore}/{totalScore}</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <Users className="w-4 h-4" />
-                                        <span>{results.length}人参加</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <Trophy className="w-4 h-4" />
-                                        <span>正确率: {averageCorrectRate}%</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <BookOpen className="w-4 h-4" />
-                                        <span>{exam.total_questions}题</span>
-                                      </div>
-                                    </div>
-                                    <div className="text-xs text-muted-foreground mt-2">
-                                      创建时间: {exam.created_at ? new Date(exam.created_at).toLocaleDateString() : '未知'}
-                                    </div>
+                            <Button
+                              key={exam.id}
+                              onClick={() => setExamDetailView(exam.id!)}
+                              variant="outline"
+                              className="h-auto p-6 flex flex-col items-start text-left space-y-3 hover:shadow-md transition-shadow"
+                            >
+                              <div className="w-full">
+                                <h3 className="font-semibold text-lg mb-2">{exam.name}</h3>
+                                <div className="space-y-2 text-sm text-muted-foreground">
+                                  <div className="flex items-center gap-2">
+                                    <BarChart3 className="w-4 h-4" />
+                                    <span>平均分: {averageScore}/{totalScore}</span>
                                   </div>
-                                  
-                                  {/* 操作按钮 */}
-                                  <div className="flex gap-2 pt-2 border-t">
-                                    <Button
-                                      onClick={() => setExamDetailView(exam.id!)}
-                                      variant="outline"
-                                      size="sm"
-                                      className="flex-1"
-                                    >
-                                      <FileSpreadsheet className="w-4 h-4 mr-2" />
-                                      查看详情
-                                    </Button>
-                                    <Button
-                                      onClick={() => setShowErrorDistribution(exam.id!)}
-                                      variant="outline"
-                                      size="sm"
-                                      className="flex-1"
-                                      disabled={results.length === 0}
-                                    >
-                                      <PieChart className="w-4 h-4 mr-2" />
-                                      错题分布
-                                    </Button>
+                                  <div className="flex items-center gap-2">
+                                    <Users className="w-4 h-4" />
+                                    <span>{results.length}人参加</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Trophy className="w-4 h-4" />
+                                    <span>正确率: {averageCorrectRate}%</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <BookOpen className="w-4 h-4" />
+                                    <span>{exam.total_questions}题</span>
                                   </div>
                                 </div>
-                              </CardContent>
-                            </Card>
+                                <div className="text-xs text-muted-foreground mt-2">
+                                  创建时间: {exam.created_at ? new Date(exam.created_at).toLocaleDateString() : '未知'}
+                                </div>
+                              </div>
+                            </Button>
                           );
                         })}
                       </div>
