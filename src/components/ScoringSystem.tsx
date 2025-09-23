@@ -1435,6 +1435,15 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
+                        onClick={() => setShowErrorDistribution(examDetailView)}
+                        variant="outline"
+                        size="sm"
+                        className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:from-blue-100 hover:to-indigo-100"
+                      >
+                        <BarChart3 className="w-4 h-4 mr-2 text-blue-600" />
+                        错题分布
+                      </Button>
+                      <Button
                         onClick={() => exportResults(examDetailView)}
                         variant="outline"
                         size="sm"
