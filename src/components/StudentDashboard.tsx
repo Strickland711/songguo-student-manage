@@ -876,6 +876,7 @@ const StudentDashboard = () => {
               onUpdateStudents={saveStudents}
               onUpdateStudentClass={updateStudentClass}
               onUpdateClassName={updateClassNameForAllStudents}
+              onStudentDoubleClick={setSelectedStudentForSpace}
             />
           </TabsContent>
 

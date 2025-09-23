@@ -30,14 +30,16 @@ interface ClassSpaceProps {
   onUpdateStudents: (students: Student[]) => Promise<void>;
   onUpdateStudentClass: (studentId: string, newClass: string) => Promise<boolean>;
   onUpdateClassName: (oldName: string, newName: string) => Promise<boolean>;
+  onStudentDoubleClick?: (student: Student) => void;
 }
 
 interface DraggableStudentProps {
   student: Student;
   isDragging?: boolean;
+  onDoubleClick?: (student: Student) => void;
 }
 
-const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
+const DraggableStudent = ({ student, isDragging, onDoubleClick }: DraggableStudentProps) => {
   const {
     attributes,
     listeners,
@@ -60,6 +62,7 @@ const DraggableStudent = ({ student, isDragging }: DraggableStudentProps) => {
         hover:border-primary/50 transition-colors text-sm font-medium min-w-0
         ${isDragging ? 'opacity-50' : ''}
       `}
+      onDoubleClick={() => onDoubleClick?.(student)}
     >
       <span className="truncate">{student.name}</span>
     </div>
@@ -70,9 +73,10 @@ interface DroppableClassProps {
   classData: ClassData;
   onToggleExpand: (className: string) => void;
   onEditClassName: (oldName: string, newName: string) => void;
+  onStudentDoubleClick?: (student: Student) => void;
 }
 
-const DroppableClass = ({ classData, onToggleExpand, onEditClassName }: DroppableClassProps) => {
+const DroppableClass = ({ classData, onToggleExpand, onEditClassName, onStudentDoubleClick }: DroppableClassProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(classData.name);
 
@@ -170,7 +174,11 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName }: Droppabl
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                   {classData.students.map(student => (
-                    <DraggableStudent key={student.id} student={student} />
+                    <DraggableStudent 
+                      key={student.id} 
+                      student={student} 
+                      onDoubleClick={onStudentDoubleClick}
+                    />
                   ))}
                 </div>
               )}
@@ -182,7 +190,7 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName }: Droppabl
   );
 };
 
-const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdateClassName }: ClassSpaceProps) => {
+const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdateClassName, onStudentDoubleClick }: ClassSpaceProps) => {
   const { toast } = useToast();
   
   // 按班级分组学生数据
@@ -426,6 +434,7 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
                 classData={classData}
                 onToggleExpand={toggleClassExpansion}
                 onEditClassName={editClassName}
+                onStudentDoubleClick={onStudentDoubleClick}
               />
             </div>
           ))}
@@ -448,6 +457,7 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
           <li>• 点击班级名称旁的编辑按钮可以修改班级名称</li>
           <li>• 点击箭头可以展开/收起班级查看学生列表</li>
           <li>• 拖拽学生卡片到其他班级可以移动学生</li>
+          <li>• 双击学生卡片可以进入该学生的个人空间</li>
           <li>• 所有变更会自动保存到数据库</li>
         </ul>
       </div>
