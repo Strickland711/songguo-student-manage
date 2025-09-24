@@ -15,6 +15,7 @@ import ScoringSystem from './ScoringSystem';
 import ClassSpace from './ClassSpace';
 import TagDragSystem from './TagDragSystem';
 import StudentSpace from './StudentSpace';
+import TagGenerator from './TagGenerator';
 
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
 
@@ -69,6 +70,7 @@ const StudentDashboard = () => {
 
   // 学生空间状态
   const [selectedStudentForSpace, setSelectedStudentForSpace] = useState<Student | null>(null);
+  const [showTagGenerator, setShowTagGenerator] = useState(false);
 
   // 手动添加学生状态
   const [showAddStudentDialog, setShowAddStudentDialog] = useState(false);
@@ -421,6 +423,11 @@ const StudentDashboard = () => {
     );
   }
 
+  // 如果显示标签生成器，渲染标签生成器组件
+  if (showTagGenerator) {
+    return <TagGenerator students={students} onClose={() => setShowTagGenerator(false)} />;
+  }
+
   // 显示加载状态
   if (dataLoading) {
     return (
@@ -463,6 +470,14 @@ const StudentDashboard = () => {
               <MessageSquare className="w-4 h-4 mr-2" />
               进入反馈系统
             </Button>
+            <Button 
+              onClick={() => setShowTagGenerator(true)} 
+              variant="outline"
+              disabled={students.length === 0}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              标签生成器
+            </Button>
             <Button onClick={exportToExcel} variant="outline" disabled={students.length === 0}>
               <FileSpreadsheet className="w-4 h-4 mr-2" />
               导出Excel
@@ -471,10 +486,11 @@ const StudentDashboard = () => {
         </div>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-fit">
+          <TabsList className="grid grid-cols-5 w-fit">
             <TabsTrigger value="dashboard">数据导入</TabsTrigger>
             <TabsTrigger value="students">学生管理</TabsTrigger>
             <TabsTrigger value="classes">班级空间</TabsTrigger>
+            <TabsTrigger value="generator">标签生成器</TabsTrigger>
             <TabsTrigger value="settings">标签设置</TabsTrigger>
           </TabsList>
 
@@ -880,6 +896,9 @@ const StudentDashboard = () => {
             />
           </TabsContent>
 
+          <TabsContent value="generator" className="space-y-6">
+            <TagGenerator students={students} onClose={() => {}} />
+          </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
             {/* Custom Fields Management */}

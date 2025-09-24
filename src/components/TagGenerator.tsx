@@ -76,7 +76,7 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
 
       if (error) throw error;
 
-      const templates: TagTemplate[] = (data || []).map(item => ({
+      const templates: TagTemplate[] = (data || []).map((item: any) => ({
         id: item.id,
         name: item.name,
         options: item.description ? JSON.parse(item.description) : [],
