@@ -70,7 +70,6 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
   
   // 分配标签相关状态
   const [currentTemplate, setCurrentTemplate] = useState<TagTemplate | null>(null);
-  const [currentStudentIndex, setCurrentStudentIndex] = useState(0);
   const [currentAssignments, setCurrentAssignments] = useState<TagAssignment[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -84,6 +83,24 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
     if (!user) return;
     loadTagTemplates();
   }, [user]);
+
+  // 更新筛选后的学生列表
+  useEffect(() => {
+    if (!nameFilter.trim()) {
+      setFilteredStudents(students);
+      return;
+    }
+
+    const filtered = students.filter(student => {
+      const firstChar = student.name.charAt(0);
+      const pinyin = surnameMap[firstChar];
+      return (
+        student.name.toLowerCase().includes(nameFilter.toLowerCase()) ||
+        (pinyin && pinyin.toLowerCase().includes(nameFilter.toLowerCase()))
+      );
+    });
+    setFilteredStudents(filtered);
+  }, [students, nameFilter]);
 
   const loadTagTemplates = async () => {
     try {
@@ -186,58 +203,44 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
 
   const startTagAssignment = (template: TagTemplate) => {
     setCurrentTemplate(template);
-    setCurrentStudentIndex(0);
     setCurrentAssignments([]);
     setSelectedStudentId(null);
+    setNameFilter('');
     setIsAssigning(true);
   };
 
   const selectStudent = (studentId: string) => {
-    const index = filteredStudents.findIndex(s => s.id === studentId);
-    if (index !== -1) {
-      setCurrentStudentIndex(index);
-      setSelectedStudentId(studentId);
-    }
+    setSelectedStudentId(studentId);
   };
 
   const handleAssignOption = (option: string) => {
-    const currentStudent = filteredStudents[currentStudentIndex];
+    if (!selectedStudentId) {
+      toast({
+        title: "请选择学生",
+        description: "请先从右侧学生列表中选择一个学生",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const newAssignment: TagAssignment = {
-      student_id: currentStudent.id!,
+      student_id: selectedStudentId,
       option: option
     };
 
     const updatedAssignments = [
-      ...currentAssignments.filter(a => a.student_id !== currentStudent.id),
+      ...currentAssignments.filter(a => a.student_id !== selectedStudentId),
       newAssignment
     ];
     
     setCurrentAssignments(updatedAssignments);
 
-    // 如果是手动选择的学生，不自动跳转
-    if (selectedStudentId) {
-      return;
-    }
-
-    // 自动移动到下一个学生
-    if (currentStudentIndex < filteredStudents.length - 1) {
-      setCurrentStudentIndex(currentStudentIndex + 1);
-    }
+    toast({
+      title: "分配成功",
+      description: `已为学生分配选项: ${option}`,
+    });
   };
 
-  const handlePreviousStudent = () => {
-    if (currentStudentIndex > 0) {
-      setCurrentStudentIndex(currentStudentIndex - 1);
-      setSelectedStudentId(null);
-    }
-  };
-
-  const handleNextStudent = () => {
-    if (currentStudentIndex < filteredStudents.length - 1) {
-      setCurrentStudentIndex(currentStudentIndex + 1);
-      setSelectedStudentId(null);
-    }
-  };
 
   const saveAssignments = async () => {
     if (!currentTemplate || currentAssignments.length === 0) return;
@@ -279,9 +282,12 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
     }
   };
 
-  const getCurrentStudentAssignment = () => {
-    const currentStudent = filteredStudents[currentStudentIndex];
-    return currentAssignments.find(a => a.student_id === currentStudent?.id)?.option || null;
+  const getStudentAssignment = (studentId: string) => {
+    return currentAssignments.find(a => a.student_id === studentId)?.option || null;
+  };
+
+  const getSelectedStudent = () => {
+    return selectedStudentId ? filteredStudents.find(s => s.id === selectedStudentId) : null;
   };
 
   const getAssignedCount = () => {
@@ -429,123 +435,171 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
               </CardContent>
             </Card>
           ) : (
-             <div className="space-y-4">
-               {/* 学生筛选和选择 */}
-               <Card>
-                 <CardHeader className="pb-3">
-                   <div className="flex justify-between items-center">
-                     <CardTitle className="text-lg">{currentTemplate?.name}</CardTitle>
-                     <Badge variant="outline">
-                       已分配: {getAssignedCount()} / {filteredStudents.length}
-                     </Badge>
-                   </div>
-                 </CardHeader>
-                 <CardContent className="space-y-4">
-                   <div>
-                     <Label htmlFor="name-filter">按姓氏筛选学生 (输入首字母)</Label>
-                     <Input
-                       id="name-filter"
-                       value={nameFilter}
-                       onChange={(e) => setNameFilter(e.target.value)}
-                       placeholder="输入姓氏首字母或姓名..."
-                       className="max-w-xs"
-                     />
-                   </div>
-                   
-                   {filteredStudents.length > 0 && (
-                     <div>
-                       <Label>选择学生 (可选)</Label>
-                       <Select value={selectedStudentId || ''} onValueChange={selectStudent}>
-                         <SelectTrigger className="max-w-xs">
-                           <SelectValue placeholder="选择要分配的学生..." />
-                         </SelectTrigger>
-                         <SelectContent>
-                           {filteredStudents.map((student) => (
-                             <SelectItem key={student.id} value={student.id!}>
-                               {student.name} - {student.class}
-                             </SelectItem>
-                           ))}
-                         </SelectContent>
-                       </Select>
-                     </div>
-                   )}
-                 </CardContent>
-               </Card>
-
-              {/* 当前学生 */}
-              <Card>
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                     <div>
-                       <CardTitle className="text-xl">
-                         {filteredStudents[currentStudentIndex]?.name}
-                       </CardTitle>
-                       <CardDescription>
-                         班级: {filteredStudents[currentStudentIndex]?.class} | 
-                         学生 {currentStudentIndex + 1} / {filteredStudents.length}
-                       </CardDescription>
-                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handlePreviousStudent}
-                        disabled={currentStudentIndex === 0}
-                      >
-                        <ArrowLeft className="w-4 h-4" />
-                      </Button>
-                       <Button
-                         variant="outline"
-                         size="sm"
-                         onClick={handleNextStudent}
-                         disabled={currentStudentIndex === filteredStudents.length - 1}
-                       >
-                         <ArrowRight className="w-4 h-4" />
-                       </Button>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 左侧 - 标签分配区域 */}
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-lg">{currentTemplate?.name}</CardTitle>
+                      <Badge variant="outline">
+                        已分配: {getAssignedCount()} / {filteredStudents.length}
+                      </Badge>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <Label>选择适合该学生的选项：</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {currentTemplate?.options.map(option => {
-                        const isSelected = getCurrentStudentAssignment() === option;
-                        return (
-                          <Button
-                            key={option}
-                            variant={isSelected ? "default" : "outline"}
-                            onClick={() => handleAssignOption(option)}
-                            className="h-auto p-4 text-left justify-start"
-                          >
-                            <div className="flex items-center gap-2">
-                              {isSelected && <Check className="w-4 h-4" />}
-                              <span>{option}</span>
-                            </div>
-                          </Button>
-                        );
-                      })}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="name-filter">按姓氏筛选学生</Label>
+                      <Input
+                        id="name-filter"
+                        value={nameFilter}
+                        onChange={(e) => setNameFilter(e.target.value)}
+                        placeholder="输入姓氏首字母或姓名..."
+                        className="mt-2"
+                      />
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              {/* 操作按钮 */}
-              <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAssigning(false)}
-                >
-                  取消
-                </Button>
-                <Button
-                  onClick={saveAssignments}
-                  disabled={currentAssignments.length === 0}
-                  className="flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  保存分配 ({getAssignedCount()})
-                </Button>
+                {/* 当前选中学生的分配区域 */}
+                {selectedStudentId && getSelectedStudent() && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-xl">
+                        {getSelectedStudent()?.name}
+                      </CardTitle>
+                      <CardDescription>
+                        班级: {getSelectedStudent()?.class}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div>
+                          <Label>当前分配的选项:</Label>
+                          <div className="mt-2">
+                            {getStudentAssignment(selectedStudentId) ? (
+                              <Badge variant="secondary" className="text-sm">
+                                {getStudentAssignment(selectedStudentId)}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">尚未分配</span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <Label>选择选项:</Label>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {currentTemplate?.options.map(option => (
+                              <Button
+                                key={option}
+                                variant={getStudentAssignment(selectedStudentId) === option ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => handleAssignOption(option)}
+                                className="flex items-center gap-2"
+                              >
+                                {getStudentAssignment(selectedStudentId) === option && (
+                                  <Check className="w-4 h-4" />
+                                )}
+                                {option}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {!selectedStudentId && (
+                  <Card>
+                    <CardContent className="py-8">
+                      <div className="text-center text-muted-foreground">
+                        <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>请从右侧学生列表中选择一个学生</p>
+                        <p className="text-sm">然后为其分配标签选项</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 操作按钮 */}
+                <div className="flex justify-between">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsAssigning(false)}
+                  >
+                    返回
+                  </Button>
+                  <Button
+                    onClick={saveAssignments}
+                    disabled={currentAssignments.length === 0}
+                    className="flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    保存分配 ({getAssignedCount()})
+                  </Button>
+                </div>
+              </div>
+
+              {/* 右侧 - 学生列表 */}
+              <div>
+                <Card className="h-fit max-h-[70vh] overflow-hidden">
+                  <CardHeader>
+                    <CardTitle className="text-lg">学生列表</CardTitle>
+                    <CardDescription>
+                      点击学生进行标签分配 ({filteredStudents.length} 名学生)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="max-h-[50vh] overflow-y-auto">
+                      {filteredStudents.length > 0 ? (
+                        <div className="space-y-1 p-6 pt-0">
+                          {filteredStudents.map((student) => {
+                            const assignment = getStudentAssignment(student.id!);
+                            const isSelected = selectedStudentId === student.id;
+                            
+                            return (
+                              <div
+                                key={student.id}
+                                onClick={() => selectStudent(student.id!)}
+                                className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
+                                  isSelected 
+                                    ? 'border-primary bg-primary/5 shadow-md' 
+                                    : 'border-border hover:border-primary/50'
+                                }`}
+                              >
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <div className="font-medium">{student.name}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {student.class}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {assignment && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {assignment}
+                                      </Badge>
+                                    )}
+                                    {isSelected && (
+                                      <div className="w-2 h-2 rounded-full bg-primary"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-6 text-center text-muted-foreground">
+                          <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p>没有找到匹配的学生</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
           )}
