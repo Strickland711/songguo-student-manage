@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,6 +45,22 @@ interface TagGeneratorProps {
 const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // 常用姓氏拼音首字母映射
+  const surnameMap: Record<string, string> = {
+    '李': 'L', '王': 'W', '张': 'Z', '刘': 'L', '陈': 'C', '杨': 'Y', '赵': 'Z', '黄': 'H',
+    '周': 'Z', '吴': 'W', '徐': 'X', '孙': 'S', '胡': 'H', '朱': 'Z', '高': 'G', '林': 'L',
+    '何': 'H', '郭': 'G', '马': 'M', '罗': 'L', '梁': 'L', '宋': 'S', '郑': 'Z', '谢': 'X',
+    '韩': 'H', '唐': 'T', '冯': 'F', '于': 'Y', '董': 'D', '萧': 'X', '程': 'C', '曹': 'C',
+    '袁': 'Y', '邓': 'D', '许': 'X', '傅': 'F', '沈': 'S', '曾': 'Z', '彭': 'P', '吕': 'L',
+    '苏': 'S', '卢': 'L', '蒋': 'J', '蔡': 'C', '贾': 'J', '丁': 'D', '魏': 'W', '薛': 'X',
+    '叶': 'Y', '阎': 'Y', '余': 'Y', '潘': 'P', '杜': 'D', '戴': 'D', '夏': 'X', '钟': 'Z',
+    '汪': 'W', '田': 'T', '任': 'R', '姜': 'J', '范': 'F', '方': 'F', '石': 'S', '姚': 'Y',
+    '谭': 'T', '廖': 'L', '邹': 'Z', '熊': 'X', '金': 'J', '陆': 'L', '郝': 'H', '孔': 'K',
+    '白': 'B', '崔': 'C', '康': 'K', '毛': 'M', '邱': 'Q', '秦': 'Q', '江': 'J', '史': 'S',
+    '顾': 'G', '侯': 'H', '邵': 'S', '孟': 'M', '龙': 'L', '万': 'W', '段': 'D', '章': 'Z',
+    '钱': 'Q', '汤': 'T', '尹': 'Y', '黎': 'L', '易': 'Y', '常': 'C', '武': 'W', '乔': 'Q'
+  };
   const [activeTab, setActiveTab] = useState('create');
   const [tagTemplates, setTagTemplates] = useState<TagTemplate[]>([]);
   
@@ -56,6 +73,9 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
   const [currentStudentIndex, setCurrentStudentIndex] = useState(0);
   const [currentAssignments, setCurrentAssignments] = useState<TagAssignment[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [nameFilter, setNameFilter] = useState('');
+  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
 
   const { toast: toastHook } = useToast();
 
@@ -168,11 +188,20 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
     setCurrentTemplate(template);
     setCurrentStudentIndex(0);
     setCurrentAssignments([]);
+    setSelectedStudentId(null);
     setIsAssigning(true);
   };
 
+  const selectStudent = (studentId: string) => {
+    const index = filteredStudents.findIndex(s => s.id === studentId);
+    if (index !== -1) {
+      setCurrentStudentIndex(index);
+      setSelectedStudentId(studentId);
+    }
+  };
+
   const handleAssignOption = (option: string) => {
-    const currentStudent = students[currentStudentIndex];
+    const currentStudent = filteredStudents[currentStudentIndex];
     const newAssignment: TagAssignment = {
       student_id: currentStudent.id!,
       option: option
@@ -185,8 +214,13 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
     
     setCurrentAssignments(updatedAssignments);
 
+    // 如果是手动选择的学生，不自动跳转
+    if (selectedStudentId) {
+      return;
+    }
+
     // 自动移动到下一个学生
-    if (currentStudentIndex < students.length - 1) {
+    if (currentStudentIndex < filteredStudents.length - 1) {
       setCurrentStudentIndex(currentStudentIndex + 1);
     }
   };
@@ -194,12 +228,14 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
   const handlePreviousStudent = () => {
     if (currentStudentIndex > 0) {
       setCurrentStudentIndex(currentStudentIndex - 1);
+      setSelectedStudentId(null);
     }
   };
 
   const handleNextStudent = () => {
-    if (currentStudentIndex < students.length - 1) {
+    if (currentStudentIndex < filteredStudents.length - 1) {
       setCurrentStudentIndex(currentStudentIndex + 1);
+      setSelectedStudentId(null);
     }
   };
 
@@ -244,7 +280,7 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
   };
 
   const getCurrentStudentAssignment = () => {
-    const currentStudent = students[currentStudentIndex];
+    const currentStudent = filteredStudents[currentStudentIndex];
     return currentAssignments.find(a => a.student_id === currentStudent?.id)?.option || null;
   };
 
@@ -393,32 +429,62 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {/* 分配进度 */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">{currentTemplate?.name}</CardTitle>
-                    <Badge variant="outline">
-                      已分配: {getAssignedCount()} / {students.length}
-                    </Badge>
-                  </div>
-                </CardHeader>
-              </Card>
+             <div className="space-y-4">
+               {/* 学生筛选和选择 */}
+               <Card>
+                 <CardHeader className="pb-3">
+                   <div className="flex justify-between items-center">
+                     <CardTitle className="text-lg">{currentTemplate?.name}</CardTitle>
+                     <Badge variant="outline">
+                       已分配: {getAssignedCount()} / {filteredStudents.length}
+                     </Badge>
+                   </div>
+                 </CardHeader>
+                 <CardContent className="space-y-4">
+                   <div>
+                     <Label htmlFor="name-filter">按姓氏筛选学生 (输入首字母)</Label>
+                     <Input
+                       id="name-filter"
+                       value={nameFilter}
+                       onChange={(e) => setNameFilter(e.target.value)}
+                       placeholder="输入姓氏首字母或姓名..."
+                       className="max-w-xs"
+                     />
+                   </div>
+                   
+                   {filteredStudents.length > 0 && (
+                     <div>
+                       <Label>选择学生 (可选)</Label>
+                       <Select value={selectedStudentId || ''} onValueChange={selectStudent}>
+                         <SelectTrigger className="max-w-xs">
+                           <SelectValue placeholder="选择要分配的学生..." />
+                         </SelectTrigger>
+                         <SelectContent>
+                           {filteredStudents.map((student) => (
+                             <SelectItem key={student.id} value={student.id!}>
+                               {student.name} - {student.class}
+                             </SelectItem>
+                           ))}
+                         </SelectContent>
+                       </Select>
+                     </div>
+                   )}
+                 </CardContent>
+               </Card>
 
               {/* 当前学生 */}
               <Card>
                 <CardHeader>
                   <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle className="text-xl">
-                        {students[currentStudentIndex]?.name}
-                      </CardTitle>
-                      <CardDescription>
-                        班级: {students[currentStudentIndex]?.class} | 
-                        学生 {currentStudentIndex + 1} / {students.length}
-                      </CardDescription>
-                    </div>
+                     <div>
+                       <CardTitle className="text-xl">
+                         {filteredStudents[currentStudentIndex]?.name}
+                       </CardTitle>
+                       <CardDescription>
+                         班级: {filteredStudents[currentStudentIndex]?.class} | 
+                         学生 {currentStudentIndex + 1} / {filteredStudents.length}
+                       </CardDescription>
+                     </div>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -428,14 +494,14 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
                       >
                         <ArrowLeft className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleNextStudent}
-                        disabled={currentStudentIndex === students.length - 1}
-                      >
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         onClick={handleNextStudent}
+                         disabled={currentStudentIndex === filteredStudents.length - 1}
+                       >
+                         <ArrowRight className="w-4 h-4" />
+                       </Button>
                     </div>
                   </div>
                 </CardHeader>
