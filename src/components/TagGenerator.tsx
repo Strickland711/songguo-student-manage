@@ -74,7 +74,7 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
   const [isAssigning, setIsAssigning] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState('');
-  const [classFilter, setClassFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
 
   const { toast: toastHook } = useToast();
@@ -90,7 +90,7 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
     let filtered = students;
 
     // 按班级筛选
-    if (classFilter.trim()) {
+    if (classFilter.trim() && classFilter !== 'all') {
       filtered = filtered.filter(student => 
         student.class.toLowerCase().includes(classFilter.toLowerCase())
       );
@@ -215,7 +215,7 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
     setCurrentAssignments([]);
     setSelectedStudentId(null);
     setNameFilter('');
-    setClassFilter('');
+    setClassFilter('all');
     setIsAssigning(true);
   };
 
@@ -461,8 +461,8 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
                         <SelectTrigger className="mt-2">
                           <SelectValue placeholder="选择班级..." />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">全部班级</SelectItem>
+                          <SelectContent>
+                            <SelectItem value="all">全部班级</SelectItem>
                           {Array.from(new Set(students.map(s => s.class).filter(Boolean))).map(className => (
                             <SelectItem key={className} value={className}>
                               {className}

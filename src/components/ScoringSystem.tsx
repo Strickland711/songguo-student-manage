@@ -101,7 +101,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   
   // 筛选和快捷键状态
   const [nameFilter, setNameFilter] = useState('');
-  const [classFilter, setClassFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [keyBindings, setKeyBindings] = useState<KeyBinding>({ correct: 'y', incorrect: 'n' });
   const [showKeySettings, setShowKeySettings] = useState(false);
@@ -224,7 +224,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
     let filtered = students;
     
     // 按班级筛选
-    if (classFilter.trim()) {
+    if (classFilter.trim() && classFilter !== 'all') {
       filtered = filtered.filter(student => 
         student.class.toLowerCase().includes(classFilter.toLowerCase())
       );
@@ -1189,7 +1189,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                               <SelectValue placeholder="选择班级" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">全部班级</SelectItem>
+                              <SelectItem value="all">全部班级</SelectItem>
                               {Array.from(new Set(students.map(s => s.class).filter(Boolean))).map(className => (
                                 <SelectItem key={className} value={className}>
                                   {className}
@@ -2484,7 +2484,7 @@ const ResultsView = ({
 }) => {
   const [selectedExams, setSelectedExams] = useState<string[]>([]);
   const [nameFilter, setNameFilter] = useState('');
-  const [classFilter, setClassFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
   
   // 切换考试选择
   const toggleExam = (examId: string) => {
@@ -2506,7 +2506,7 @@ const ResultsView = ({
     let matches = true;
     
     // 按班级筛选
-    if (classFilter.trim()) {
+    if (classFilter.trim() && classFilter !== 'all') {
       matches = matches && student.class.toLowerCase().includes(classFilter.toLowerCase());
     }
     
@@ -2646,9 +2646,9 @@ const ResultsView = ({
                 <Select value={classFilter} onValueChange={setClassFilter}>
                   <SelectTrigger className="w-24">
                     <SelectValue placeholder="全部" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">全部班级</SelectItem>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">全部班级</SelectItem>
                     {Array.from(new Set(students.map(s => s.class).filter(Boolean))).map(className => (
                       <SelectItem key={className} value={className}>
                         {className}
