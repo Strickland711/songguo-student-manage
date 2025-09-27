@@ -470,14 +470,6 @@ const StudentDashboard = () => {
               <MessageSquare className="w-4 h-4 mr-2" />
               进入反馈系统
             </Button>
-            <Button 
-              onClick={() => setShowTagGenerator(true)} 
-              variant="outline"
-              disabled={students.length === 0}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              标签生成器
-            </Button>
             <Button onClick={exportToExcel} variant="outline" disabled={students.length === 0}>
               <FileSpreadsheet className="w-4 h-4 mr-2" />
               导出Excel

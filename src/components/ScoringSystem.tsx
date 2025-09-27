@@ -101,6 +101,7 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   
   // 筛选和快捷键状态
   const [nameFilter, setNameFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [keyBindings, setKeyBindings] = useState<KeyBinding>({ correct: 'y', incorrect: 'n' });
   const [showKeySettings, setShowKeySettings] = useState(false);
@@ -221,16 +222,26 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   // 初始化筛选学生列表
   useEffect(() => {
     let filtered = students;
+    
+    // 按班级筛选
+    if (classFilter.trim()) {
+      filtered = filtered.filter(student => 
+        student.class.toLowerCase().includes(classFilter.toLowerCase())
+      );
+    }
+    
+    // 按姓名筛选
     if (nameFilter) {
       const filterLetter = nameFilter.toUpperCase();
-      filtered = students.filter(student => {
+      filtered = filtered.filter(student => {
         const surname = student.name.charAt(0);
         const pinyinLetter = surnameMap[surname] || surname.toUpperCase();
         return pinyinLetter === filterLetter || student.name.includes(nameFilter);
       });
     }
+    
     setFilteredStudents(filtered);
-  }, [students, nameFilter]);
+  }, [students, nameFilter, classFilter]);
 
   // 初始化题目分数
   useEffect(() => {
@@ -1168,19 +1179,37 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
                 {/* 筛选区域 */}
                 <Card className="shadow-card">
                   <CardContent className="py-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-accent" />
-                        <Label>姓氏筛选:</Label>
-                      </div>
-                      <Input
-                        value={nameFilter}
-                        onChange={(e) => setNameFilter(e.target.value)}
-                        placeholder="输入姓氏首字母或姓名"
-                        className="w-48"
-                      />
-                      <div className="text-sm text-muted-foreground">
-                        共 {filteredStudents.length} 名学生
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div className="flex items-center gap-2">
+                          <Filter className="w-4 h-4 text-accent" />
+                          <Label>班级筛选:</Label>
+                          <Select value={classFilter} onValueChange={setClassFilter}>
+                            <SelectTrigger className="w-32">
+                              <SelectValue placeholder="选择班级" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">全部班级</SelectItem>
+                              {Array.from(new Set(students.map(s => s.class).filter(Boolean))).map(className => (
+                                <SelectItem key={className} value={className}>
+                                  {className}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label>姓氏筛选:</Label>
+                          <Input
+                            value={nameFilter}
+                            onChange={(e) => setNameFilter(e.target.value)}
+                            placeholder="输入姓氏首字母或姓名"
+                            className="w-48"
+                          />
+                        </div>
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          共 {filteredStudents.length} 名学生
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {scoringHistory.length > 0 && (
@@ -2455,6 +2484,7 @@ const ResultsView = ({
 }) => {
   const [selectedExams, setSelectedExams] = useState<string[]>([]);
   const [nameFilter, setNameFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
   
   // 切换考试选择
   const toggleExam = (examId: string) => {
@@ -2472,9 +2502,21 @@ const ResultsView = ({
   };
 
   // 筛选学生
-  const filteredStudents = students.filter(student =>
-    student.name.toLowerCase().includes(nameFilter.toLowerCase())
-  );
+  const filteredStudents = students.filter(student => {
+    let matches = true;
+    
+    // 按班级筛选
+    if (classFilter.trim()) {
+      matches = matches && student.class.toLowerCase().includes(classFilter.toLowerCase());
+    }
+    
+    // 按姓名筛选
+    if (nameFilter.trim()) {
+      matches = matches && student.name.toLowerCase().includes(nameFilter.toLowerCase());
+    }
+    
+    return matches;
+  });
 
   // 导出选中考试的成绩
   const exportSelectedExams = () => {
@@ -2599,6 +2641,22 @@ const ResultsView = ({
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="class-filter" className="text-sm">班级:</Label>
+                <Select value={classFilter} onValueChange={setClassFilter}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue placeholder="全部" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">全部班级</SelectItem>
+                    {Array.from(new Set(students.map(s => s.class).filter(Boolean))).map(className => (
+                      <SelectItem key={className} value={className}>
+                        {className}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center gap-2">
                 <Label htmlFor="name-filter" className="text-sm">筛选学生:</Label>
                 <Input

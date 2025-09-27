@@ -74,6 +74,7 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
   const [isAssigning, setIsAssigning] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
 
   const { toast: toastHook } = useToast();
@@ -86,21 +87,29 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
 
   // 更新筛选后的学生列表
   useEffect(() => {
-    if (!nameFilter.trim()) {
-      setFilteredStudents(students);
-      return;
+    let filtered = students;
+
+    // 按班级筛选
+    if (classFilter.trim()) {
+      filtered = filtered.filter(student => 
+        student.class.toLowerCase().includes(classFilter.toLowerCase())
+      );
     }
 
-    const filtered = students.filter(student => {
-      const firstChar = student.name.charAt(0);
-      const pinyin = surnameMap[firstChar];
-      return (
-        student.name.toLowerCase().includes(nameFilter.toLowerCase()) ||
-        (pinyin && pinyin.toLowerCase().includes(nameFilter.toLowerCase()))
-      );
-    });
+    // 按姓名筛选
+    if (nameFilter.trim()) {
+      filtered = filtered.filter(student => {
+        const firstChar = student.name.charAt(0);
+        const pinyin = surnameMap[firstChar];
+        return (
+          student.name.toLowerCase().includes(nameFilter.toLowerCase()) ||
+          (pinyin && pinyin.toLowerCase().includes(nameFilter.toLowerCase()))
+        );
+      });
+    }
+
     setFilteredStudents(filtered);
-  }, [students, nameFilter]);
+  }, [students, nameFilter, classFilter]);
 
   const loadTagTemplates = async () => {
     try {
@@ -206,6 +215,7 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
     setCurrentAssignments([]);
     setSelectedStudentId(null);
     setNameFilter('');
+    setClassFilter('');
     setIsAssigning(true);
   };
 
@@ -301,9 +311,6 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
           <h2 className="text-2xl font-bold">标签生成器</h2>
           <p className="text-muted-foreground">创建带选项的标签并为学生分配</p>
         </div>
-        <Button variant="outline" onClick={onClose}>
-          关闭
-        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -448,6 +455,22 @@ const TagGenerator = ({ students, onClose }: TagGeneratorProps) => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="class-filter">按班级筛选</Label>
+                      <Select value={classFilter} onValueChange={setClassFilter}>
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="选择班级..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">全部班级</SelectItem>
+                          {Array.from(new Set(students.map(s => s.class).filter(Boolean))).map(className => (
+                            <SelectItem key={className} value={className}>
+                              {className}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div>
                       <Label htmlFor="name-filter">按姓氏筛选学生</Label>
                       <Input
