@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare } from 'lucide-react';
+import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
@@ -18,6 +18,9 @@ import StudentSpace from './StudentSpace';
 import TagGenerator from './TagGenerator';
 
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface ColumnMapping {
   column: string;
@@ -30,6 +33,7 @@ interface ExcelData {
 }
 
 const StudentDashboard = () => {
+  const { user } = useAuth();
   const {
     students,
     customFields,
@@ -75,6 +79,17 @@ const StudentDashboard = () => {
   // 手动添加学生状态
   const [showAddStudentDialog, setShowAddStudentDialog] = useState(false);
   const [newStudent, setNewStudent] = useState<Partial<Student>>({ name: '', class: '' });
+  
+  // 导出Excel相关状态
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportOptions, setExportOptions] = useState({
+    basicInfo: true,
+    customFields: true,
+    examScores: false,
+    feedbackCounts: false
+  });
+  const [examResults, setExamResults] = useState<any[]>([]);
+  const [feedbackRecords, setFeedbackRecords] = useState<any[]>([]);
   
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -356,15 +371,113 @@ const StudentDashboard = () => {
     }
   };
 
-  const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(students);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "学生信息");
-    XLSX.writeFile(workbook, `学生信息导出_${new Date().toLocaleDateString()}.xlsx`);
-    toast({
-      title: "导出成功",
-      description: "学生信息已导出到Excel文件",
-    });
+  const exportToExcel = async () => {
+    try {
+      // 准备基础学生数据
+      let exportData = students.map(student => {
+        const data: any = {};
+        
+        // 基本信息
+        if (exportOptions.basicInfo) {
+          data['姓名'] = student.name;
+          data['班级'] = student.class;
+        }
+        
+        // 自定义字段
+        if (exportOptions.customFields) {
+          customFields.forEach(field => {
+            data[field.name] = student[field.name] || '';
+          });
+        }
+        
+        return { ...data, studentId: student.id };
+      });
+
+      // 获取考试成绩数据
+      if (exportOptions.examScores && user) {
+        const { data: exams } = await supabase
+          .from('exams')
+          .select('id, name')
+          .eq('user_id', user.id);
+          
+        const { data: results } = await supabase
+          .from('exam_results')
+          .select('student_id, exam_id, total_score, correct_count')
+          .eq('user_id', user.id);
+          
+        if (exams && results) {
+          // 为每个考试添加成绩列
+          exams.forEach(exam => {
+            exportData = exportData.map(row => {
+              const result = results.find(r => r.student_id === row.studentId && r.exam_id === exam.id);
+              return {
+                ...row,
+                [`${exam.name}_总分`]: result?.total_score || 0,
+                [`${exam.name}_正确题数`]: result?.correct_count || 0
+              };
+            });
+          });
+        }
+      }
+
+      // 获取反馈数据
+      if (exportOptions.feedbackCounts && user) {
+        const { data: feedbacks } = await supabase
+          .from('feedback_records')
+          .select('student_id, mood')
+          .eq('user_id', user.id);
+          
+        if (feedbacks) {
+          // 统计每个学生的反馈次数
+          const feedbackCounts = feedbacks.reduce((acc: any, feedback) => {
+            const studentId = feedback.student_id;
+            if (!acc[studentId]) {
+              acc[studentId] = { total: 0, positive: 0, negative: 0, neutral: 0 };
+            }
+            acc[studentId].total++;
+            if (['happy', 'excited', 'proud'].includes(feedback.mood)) {
+              acc[studentId].positive++;
+            } else if (['sad', 'angry', 'frustrated'].includes(feedback.mood)) {
+              acc[studentId].negative++;
+            } else {
+              acc[studentId].neutral++;
+            }
+            return acc;
+          }, {});
+          
+          exportData = exportData.map(row => ({
+            ...row,
+            '反馈总次数': feedbackCounts[row.studentId]?.total || 0,
+            '积极反馈': feedbackCounts[row.studentId]?.positive || 0,
+            '消极反馈': feedbackCounts[row.studentId]?.negative || 0,
+            '中性反馈': feedbackCounts[row.studentId]?.neutral || 0
+          }));
+        }
+      }
+
+      // 移除临时的studentId字段
+      exportData = exportData.map(row => {
+        const { studentId, ...rest } = row;
+        return rest;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "学生信息");
+      XLSX.writeFile(workbook, `学生信息导出_${new Date().toLocaleDateString()}.xlsx`);
+      
+      setShowExportDialog(false);
+      toast({
+        title: "导出成功",
+        description: "学生信息已导出到Excel文件",
+      });
+    } catch (error) {
+      toast({
+        title: "导出失败",
+        description: "导出过程中发生错误，请重试",
+        variant: "destructive",
+      });
+    }
   };
 
   // 手动添加学生
@@ -470,7 +583,11 @@ const StudentDashboard = () => {
               <MessageSquare className="w-4 h-4 mr-2" />
               进入反馈系统
             </Button>
-            <Button onClick={exportToExcel} variant="outline" disabled={students.length === 0}>
+            <Button 
+              onClick={() => setShowExportDialog(true)} 
+              variant="outline" 
+              disabled={students.length === 0}
+            >
               <FileSpreadsheet className="w-4 h-4 mr-2" />
               导出Excel
             </Button>
@@ -966,6 +1083,109 @@ const StudentDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* 导出Excel选项对话框 */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-primary" />
+              导出Excel选项
+            </DialogTitle>
+            <DialogDescription>
+              选择要导出到Excel文件中的信息类型
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="basic-info"
+                  checked={exportOptions.basicInfo}
+                  onCheckedChange={(checked) => 
+                    setExportOptions(prev => ({ ...prev, basicInfo: !!checked }))
+                  }
+                />
+                <Label htmlFor="basic-info" className="text-sm font-medium">
+                  基本信息 (姓名、班级)
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="custom-fields"
+                  checked={exportOptions.customFields}
+                  onCheckedChange={(checked) => 
+                    setExportOptions(prev => ({ ...prev, customFields: !!checked }))
+                  }
+                />
+                <Label htmlFor="custom-fields" className="text-sm font-medium">
+                  自定义标签
+                </Label>
+                {customFields.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    ({customFields.length} 个标签)
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="exam-scores"
+                  checked={exportOptions.examScores}
+                  onCheckedChange={(checked) => 
+                    setExportOptions(prev => ({ ...prev, examScores: !!checked }))
+                  }
+                />
+                <Label htmlFor="exam-scores" className="text-sm font-medium">
+                  考试成绩
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  (总分和正确题数)
+                </span>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="feedback-counts"
+                  checked={exportOptions.feedbackCounts}
+                  onCheckedChange={(checked) => 
+                    setExportOptions(prev => ({ ...prev, feedbackCounts: !!checked }))
+                  }
+                />
+                <Label htmlFor="feedback-counts" className="text-sm font-medium">
+                  反馈统计
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  (反馈次数和情感分布)
+                </span>
+              </div>
+            </div>
+            
+            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+              <p className="font-medium mb-1">提示：</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>至少选择一种信息类型才能导出</li>
+                <li>成绩和反馈数据需要从数据库获取，可能需要一些时间</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              取消
+            </Button>
+            <Button 
+              onClick={exportToExcel}
+              disabled={!Object.values(exportOptions).some(Boolean)}
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              导出Excel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Student Modal - Optimized for better display */}
       {editingStudent && (
