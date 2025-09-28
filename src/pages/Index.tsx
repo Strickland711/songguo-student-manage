@@ -36,6 +36,9 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">学生管理系统</p>
             </div>
             <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => navigate('/intro')}>
+                产品介绍
+              </Button>
               <span className="text-sm text-foreground">
                 欢迎，{user.user_metadata?.full_name || user.email}
               </span>
