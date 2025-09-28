@@ -45,6 +45,9 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(223 47% 11%), hsl(223 47% 21%));
     --gradient-accent: linear-gradient(135deg, hsl(29 86% 58%), hsl(29 86% 68%));
     --gradient-subtle: linear-gradient(180deg, hsl(218 25% 98%), hsl(220 14% 96%));
+    --gradient-hero: linear-gradient(135deg, hsl(223 47% 11%) 0%, hsl(29 86% 58%) 50%, hsl(223 47% 21%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(220 14% 96%) 100%);
+    --gradient-overlay: linear-gradient(180deg, hsl(223 47% 11% / 0.1) 0%, hsl(29 86% 58% / 0.1) 100%);
 
     --shadow-elegant: 0 10px 30px -10px hsl(223 47% 11% / 0.1);
     --shadow-card: 0 2px 8px -2px hsl(223 47% 11% / 0.1);
@@ -108,6 +111,9 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(218 25% 98%), hsl(220 14% 96%));
     --gradient-accent: linear-gradient(135deg, hsl(29 86% 58%), hsl(29 86% 68%));
     --gradient-subtle: linear-gradient(180deg, hsl(223 47% 11%), hsl(223 39% 14%));
+    --gradient-hero: linear-gradient(135deg, hsl(218 25% 98%) 0%, hsl(29 86% 58%) 50%, hsl(223 39% 14%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(223 39% 14%) 0%, hsl(220 9% 22%) 100%);
+    --gradient-overlay: linear-gradient(180deg, hsl(218 25% 98% / 0.1) 0%, hsl(29 86% 58% / 0.1) 100%);
 
     --shadow-elegant: 0 10px 30px -10px hsl(0 0% 0% / 0.3);
     --shadow-card: 0 2px 8px -2px hsl(0 0% 0% / 0.2);
