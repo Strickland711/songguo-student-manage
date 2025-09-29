@@ -251,6 +251,39 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          tag_field_name: string
+          tag_value: string
+          template: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          tag_field_name: string
+          tag_value: string
+          template: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          tag_field_name?: string
+          tag_value?: string
+          template?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

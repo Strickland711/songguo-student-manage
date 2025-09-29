@@ -6,13 +6,16 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, FileText } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
 import { useStudentData, Student } from '@/hooks/useStudentData';
+import { useFeedbackTemplates } from '@/hooks/useFeedbackTemplates';
+import FeedbackTemplateManager from '@/components/FeedbackTemplateManager';
 import { cn } from '@/lib/utils';
 
 interface FeedbackSystemProps {
@@ -21,6 +24,8 @@ interface FeedbackSystemProps {
 
 const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const { feedbackRecords, loading, saveFeedbackRecord, getFeedbackByDate, getFeedbackByStudentIds } = useFeedbackData();
+  const { customFields } = useStudentData();
+  const { templates, getTemplateForStudent, renderTemplate } = useFeedbackTemplates();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
@@ -29,6 +34,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [filterClass, setFilterClass] = useState<string>('all');
   const [searchName, setSearchName] = useState('');
+  const [selectedTemplateField, setSelectedTemplateField] = useState<string>('class');
 
   const moodIcons = {
     happy: { icon: Smile, color: 'text-green-500', bgColor: 'bg-green-50 border-green-200', label: '高兴' },
@@ -174,23 +180,30 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   return (
     <div className="min-h-screen bg-gradient-subtle p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary">家长反馈系统</h1>
-            <p className="text-muted-foreground mt-2">记录和分析每日与家长的反馈沟通情况</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="secondary" className="px-3 py-1">
-              <CalendarIcon className="w-4 h-4 mr-1" />
-              {format(selectedDate, 'yyyy年MM月dd日', { locale: zhCN })}
-            </Badge>
-            <Badge variant="secondary" className="px-3 py-1">
-              <MessageSquare className="w-4 h-4 mr-1" />
-              今日反馈 {todayFeedbacks.length} 条
-            </Badge>
-          </div>
-        </div>
+        <Tabs defaultValue="feedback" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="feedback">反馈管理</TabsTrigger>
+            <TabsTrigger value="templates">话术模板</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="feedback" className="space-y-6 mt-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-primary">家长反馈系统</h1>
+                <p className="text-muted-foreground mt-2">记录和分析每日与家长的反馈沟通情况</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant="secondary" className="px-3 py-1">
+                  <CalendarIcon className="w-4 h-4 mr-1" />
+                  {format(selectedDate, 'yyyy年MM月dd日', { locale: zhCN })}
+                </Badge>
+                <Badge variant="secondary" className="px-3 py-1">
+                  <MessageSquare className="w-4 h-4 mr-1" />
+                  今日反馈 {todayFeedbacks.length} 条
+                </Badge>
+              </div>
+            </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 日历区域 */}
@@ -354,6 +367,12 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
             </Card>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="templates" className="mt-6">
+            <FeedbackTemplateManager customFields={customFields} students={students} />
+          </TabsContent>
+        </Tabs>
 
         {/* 反馈对话框 */}
         <Dialog open={showFeedbackDialog} onOpenChange={setShowFeedbackDialog}>
@@ -395,25 +414,48 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                 </div>
               </div>
 
-              {/* 备注 */}
+              {/* 备注和模板 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium">反馈备注</label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={true}
-                    className="text-xs opacity-50"
-                  >
-                    🤖 AI 生成话术 (即将上线)
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
+                      <SelectTrigger className="w-32 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="class">按班级</SelectItem>
+                        {customFields.map(field => (
+                          <SelectItem key={field.name} value={field.name}>
+                            按{field.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1"
+                      onClick={() => {
+                        if (!currentStudent) return;
+                        const template = getTemplateForStudent(currentStudent, selectedTemplateField);
+                        if (template) {
+                          const rendered = renderTemplate(template.template, currentStudent);
+                          setFeedbackNotes(rendered);
+                        }
+                      }}
+                    >
+                      <FileText className="w-3 h-3" />
+                      使用话术模板
+                    </Button>
+                  </div>
                 </div>
                 <Textarea
                   placeholder="记录具体的反馈内容和沟通情况..."
                   value={feedbackNotes}
                   onChange={(e) => setFeedbackNotes(e.target.value)}
-                  rows={4}
+                  rows={6}
                 />
               </div>
             </div>
