@@ -437,6 +437,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                       variant="outline"
                       size="sm"
                       className="text-xs gap-1"
+                      disabled={!currentStudent || !getTemplateForStudent(currentStudent, selectedTemplateField)}
                       onClick={() => {
                         if (!currentStudent) return;
                         const template = getTemplateForStudent(currentStudent, selectedTemplateField);
