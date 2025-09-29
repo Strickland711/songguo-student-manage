@@ -127,7 +127,7 @@ const ProductIntro = () => {
   }, []);
 
   return (
-    <div className="relative">
+    <div className="relative snap-y snap-mandatory overflow-y-scroll h-screen scroll-smooth">
       {/* Navigation Dots */}
       <div className="fixed right-8 top-1/2 transform -translate-y-1/2 z-50 flex flex-col gap-3">
         {sections.map((_, index) => (
@@ -157,11 +157,11 @@ const ProductIntro = () => {
             </Badge>
           </div>
           
-          <h1 className="text-8xl md:text-9xl font-bold mb-8 text-foreground animate-scale-in">
+          <h1 className="text-8xl md:text-9xl font-black mb-8 text-foreground animate-scale-in font-serif tracking-wider">
             松果记
           </h1>
           
-          <p className="text-2xl md:text-3xl text-muted-foreground mb-12 max-w-4xl mx-auto animate-fade-in-up">
+          <p className="text-2xl md:text-3xl text-primary-foreground/90 mb-12 max-w-4xl mx-auto animate-fade-in-up font-light tracking-wide">
             新一代智能学生管理系统<br />让教育管理更简单、更高效、更智能
           </p>
           
@@ -200,10 +200,10 @@ const ProductIntro = () => {
       >
         <div className="container mx-auto px-4">
           <div className="text-center mb-20 animate-fade-in-down">
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-foreground">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-foreground font-serif">
               核心功能特色
             </h2>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto font-light">
               五大核心模块，全面覆盖教育管理需求，为您提供专业的解决方案
             </p>
           </div>
@@ -242,10 +242,10 @@ const ProductIntro = () => {
       >
         <div className="container mx-auto px-4">
           <div className="text-center mb-20 animate-fade-in-down">
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-foreground">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-foreground font-serif">
               为什么选择松果记？
             </h2>
-            <p className="text-xl text-muted-foreground">
+            <p className="text-xl text-muted-foreground font-light">
               数据驱动的教育管理解决方案，让每个数字都有意义
             </p>
           </div>
@@ -284,10 +284,10 @@ const ProductIntro = () => {
       >
         <div className="container mx-auto px-4 text-center">
           <div className="mb-20 animate-fade-in-down">
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-foreground">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-foreground font-serif">
               用数据说话
             </h2>
-            <p className="text-xl text-muted-foreground">
+            <p className="text-xl text-muted-foreground font-light">
               已服务数万教育工作者，获得一致好评
             </p>
           </div>
@@ -317,10 +317,10 @@ const ProductIntro = () => {
         <div className="absolute inset-0 bg-gradient-overlay"></div>
         <div className="container mx-auto text-center relative z-10 px-4">
           <div className="animate-fade-in-up">
-            <h2 className="text-5xl md:text-6xl font-bold mb-8">
+            <h2 className="text-5xl md:text-6xl font-bold mb-8 font-serif">
               准备开始您的智能教育管理之旅？
             </h2>
-            <p className="text-2xl mb-12 opacity-90 max-w-3xl mx-auto">
+            <p className="text-2xl mb-12 opacity-90 max-w-3xl mx-auto font-light">
               加入数万教育工作者的行列，体验更高效、更智能的教学管理
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-6 mb-16">
@@ -356,10 +356,10 @@ const ProductIntro = () => {
       {/* Footer */}
       <footer className="py-12 px-4 bg-card border-t border-border">
         <div className="container mx-auto text-center">
-          <h3 className="text-3xl font-bold mb-4 text-foreground">
+          <h3 className="text-3xl font-bold mb-4 text-foreground font-serif">
             松果记
           </h3>
-          <p className="text-muted-foreground mb-6">专业教培小帮手，让教育管理更简单</p>
+          <p className="text-muted-foreground mb-6 font-light">专业教培小帮手，让教育管理更简单</p>
           <div className="text-sm text-muted-foreground">
             © 2024 松果记. 保留所有权利.
           </div>
