@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus, Trash2, Edit, FileText } from 'lucide-react';
 import StudentSegmentation from './StudentSegmentation';
+import FeedbackTemplateManager from './FeedbackTemplateManager';
 import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
@@ -303,7 +304,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
             <Target className="w-4 h-4" />
             反馈计划
           </TabsTrigger>
-          <TabsTrigger value="scripts" className="flex items-center gap-2" disabled>
+          <TabsTrigger value="scripts" className="flex items-center gap-2">
             <MessageCircle className="w-4 h-4" />
             反馈话术
           </TabsTrigger>
@@ -610,22 +611,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
         </TabsContent>
 
         <TabsContent value="scripts" className="space-y-6">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-accent" />
-                反馈话术
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center h-64 text-muted-foreground">
-                <div className="text-center">
-                  <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>反馈话术功能正在开发中...</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <FeedbackTemplateManager customFields={customFields} students={students} />
         </TabsContent>
       </Tabs>
     </div>
