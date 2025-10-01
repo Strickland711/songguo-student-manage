@@ -271,11 +271,6 @@ supabase/
 
 ## 🚢 部署
 
-### Lovable平台部署
-1. 打开 [Lovable项目](https://lovable.dev/projects/399fb9ac-8bad-4102-96a1-15f7bc3a4d56)
-2. 点击右上角 "Publish" 按钮
-3. 系统自动部署，获得在线访问链接
-
 ### 自定义域名
 1. 进入 Project > Settings > Domains
 2. 点击 "Connect Domain"
@@ -318,10 +313,6 @@ npm run preview
 ```
 
 ### 代码编辑
-
-**在Lovable中编辑**
-- 访问项目页面，直接使用AI编程
-- 自动提交到Git仓库
 
 **使用IDE编辑**
 - 克隆仓库到本地
@@ -368,10 +359,5 @@ MIT License
 
 如有问题或建议，请通过以下方式联系：
 - 在GitHub上提交Issue
-- Lovable项目页面留言
 
----
-
-**项目地址**: [Lovable Project](https://lovable.dev/projects/399fb9ac-8bad-4102-96a1-15f7bc3a4d56)
-
-**最后更新**: 2025-01-05
+**最后更新**: 2025-10-02
