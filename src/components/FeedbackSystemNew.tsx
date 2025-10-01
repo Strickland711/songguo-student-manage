@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus, Trash2, Edit } from 'lucide-react';
+import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus, Trash2, Edit, FileText } from 'lucide-react';
 import StudentSegmentation from './StudentSegmentation';
 import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -17,6 +17,7 @@ import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
 import { useStudentData, Student } from '@/hooks/useStudentData';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useFeedbackTemplates } from '@/hooks/useFeedbackTemplates';
 
 interface FeedbackSystemProps {
   students: Student[];
@@ -24,7 +25,7 @@ interface FeedbackSystemProps {
 
 const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const { feedbackRecords, loading, saveFeedbackRecord, getFeedbackByDate, deleteFeedbackRecord } = useFeedbackData();
-  const { saveStudents } = useStudentData();
+  const { saveStudents, customFields } = useStudentData();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [filterClass, setFilterClass] = useState<string>('all');
   const [searchName, setSearchName] = useState('');
@@ -34,8 +35,10 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [currentNotesStudent, setCurrentNotesStudent] = useState<{ id: string, name: string } | null>(null);
   const [notesInput, setNotesInput] = useState('');
+  const [selectedTemplateField, setSelectedTemplateField] = useState<string>('class');
   
   const { toast } = useToast();
+  const { getTemplateForStudent, renderTemplate } = useFeedbackTemplates();
 
   // 页面离开提示
   useEffect(() => {
@@ -525,7 +528,51 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                 <div className="text-muted-foreground">{currentNotesStudent?.name}</div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">反馈备注</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">反馈备注</label>
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
+                      <SelectTrigger className="h-8 w-32 text-xs">
+                        <SelectValue placeholder="选择字段" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="class">按班级</SelectItem>
+                        {customFields?.map(field => (
+                          <SelectItem key={field.name} value={field.name}>
+                            按{field.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1"
+                      onClick={() => {
+                        if (!currentNotesStudent) {
+                          toast({ title: '未选择学生', description: '请先选择学生', variant: 'destructive' });
+                          return;
+                        }
+                        const student = students.find(s => s.id === currentNotesStudent.id);
+                        if (!student) {
+                          toast({ title: '学生不存在', description: '无法找到该学生信息', variant: 'destructive' });
+                          return;
+                        }
+                        const template = getTemplateForStudent(student as any, selectedTemplateField);
+                        if (!template) {
+                          toast({ title: '未找到话术模板', description: `请为“${selectedTemplateField}”配置相应模板`, variant: 'default' });
+                          return;
+                        }
+                        const rendered = renderTemplate(template.template, student as any);
+                        setNotesInput(rendered);
+                      }}
+                    >
+                      <FileText className="w-3 h-3" />
+                      使用话术模板
+                    </Button>
+                  </div>
+                </div>
                 <Textarea
                   placeholder="请输入反馈备注..."
                   value={notesInput}
