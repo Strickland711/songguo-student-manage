@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus, Trash2, Edit, FileText } from 'lucide-react';
+import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus, Trash2, Edit, FileText, Sparkles, Loader2 } from 'lucide-react';
 import StudentSegmentation from './StudentSegmentation';
 import FeedbackTemplateManager from './FeedbackTemplateManager';
 import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
@@ -37,9 +37,10 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const [currentNotesStudent, setCurrentNotesStudent] = useState<{ id: string, name: string } | null>(null);
   const [notesInput, setNotesInput] = useState('');
   const [selectedTemplateField, setSelectedTemplateField] = useState<string>('class');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   
   const { toast } = useToast();
-  const { getTemplateForStudent, renderTemplate } = useFeedbackTemplates();
+  const { getTemplateForStudent, renderTemplate, generateWithAI } = useFeedbackTemplates();
 
   // 页面离开提示
   useEffect(() => {

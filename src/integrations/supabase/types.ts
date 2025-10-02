@@ -253,6 +253,7 @@ export type Database = {
       }
       feedback_templates: {
         Row: {
+          ai_prompt: string | null
           created_at: string
           id: string
           name: string
@@ -260,9 +261,11 @@ export type Database = {
           tag_value: string
           template: string
           updated_at: string
+          use_ai: boolean | null
           user_id: string
         }
         Insert: {
+          ai_prompt?: string | null
           created_at?: string
           id?: string
           name: string
@@ -270,9 +273,11 @@ export type Database = {
           tag_value: string
           template: string
           updated_at?: string
+          use_ai?: boolean | null
           user_id: string
         }
         Update: {
+          ai_prompt?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -280,6 +285,7 @@ export type Database = {
           tag_value?: string
           template?: string
           updated_at?: string
+          use_ai?: boolean | null
           user_id?: string
         }
         Relationships: []

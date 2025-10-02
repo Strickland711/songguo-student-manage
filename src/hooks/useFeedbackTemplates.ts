@@ -10,6 +10,8 @@ export interface FeedbackTemplate {
   tag_field_name: string;
   tag_value: string;
   template: string;
+  ai_prompt?: string;
+  use_ai?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -121,6 +123,38 @@ export const useFeedbackTemplates = () => {
     );
   };
 
+  const generateWithAI = async (template: FeedbackTemplate, student: any) => {
+    if (!template.use_ai || !template.ai_prompt) {
+      return null;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-feedback', {
+        body: {
+          prompt: template.ai_prompt,
+          studentInfo: {
+            姓名: student.name,
+            班级: student.class,
+            ...Object.keys(student)
+              .filter(key => !['id', 'user_id', 'created_at', 'updated_at', 'name', 'class'].includes(key))
+              .reduce((obj, key) => ({ ...obj, [key]: student[key] }), {})
+          }
+        }
+      });
+
+      if (error) throw error;
+      return data.feedback;
+    } catch (error: any) {
+      console.error('AI generation failed:', error);
+      toast({
+        title: "AI生成失败",
+        description: error.message || "请重试或使用固定模板",
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
   const renderTemplate = (template: string, student: any) => {
     let rendered = template;
     
@@ -155,6 +189,7 @@ export const useFeedbackTemplates = () => {
     deleteTemplate,
     getTemplateForStudent,
     renderTemplate,
+    generateWithAI,
     loadTemplates
   };
 };

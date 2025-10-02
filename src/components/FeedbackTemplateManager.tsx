@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Edit, Trash2, FileText, Tag } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, Edit, Trash2, FileText, Tag, Sparkles } from 'lucide-react';
 import { useFeedbackTemplates, FeedbackTemplate } from '@/hooks/useFeedbackTemplates';
 import { CustomField, Student } from '@/hooks/useStudentData';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,8 @@ const FeedbackTemplateManager = ({ customFields, students }: FeedbackTemplateMan
   const [selectedValue, setSelectedValue] = useState<string>('');
   const [templateName, setTemplateName] = useState('');
   const [templateContent, setTemplateContent] = useState('');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [useAI, setUseAI] = useState(false);
 
   // 获取所有可用的分类字段
   const availableFields = useMemo(() => {
@@ -67,18 +70,30 @@ const FeedbackTemplateManager = ({ customFields, students }: FeedbackTemplateMan
       setSelectedValue(template.tag_value);
       setTemplateName(template.name);
       setTemplateContent(template.template);
+      setAiPrompt(template.ai_prompt || '');
+      setUseAI(template.use_ai || false);
     } else {
       setEditingTemplate(null);
       setSelectedField('class');
       setSelectedValue('');
       setTemplateName('');
       setTemplateContent('');
+      setAiPrompt('');
+      setUseAI(false);
     }
     setShowDialog(true);
   };
 
   const handleSave = async () => {
-    if (!selectedField || !selectedValue || !templateName || !templateContent) {
+    if (!selectedField || !selectedValue || !templateName) {
+      return;
+    }
+
+    if (useAI && !aiPrompt) {
+      return;
+    }
+
+    if (!useAI && !templateContent) {
       return;
     }
 
@@ -87,7 +102,9 @@ const FeedbackTemplateManager = ({ customFields, students }: FeedbackTemplateMan
         name: templateName,
         tag_field_name: selectedField,
         tag_value: selectedValue,
-        template: templateContent
+        template: templateContent,
+        ai_prompt: aiPrompt,
+        use_ai: useAI
       });
       setShowDialog(false);
     } catch (error) {
@@ -177,15 +194,25 @@ const FeedbackTemplateManager = ({ customFields, students }: FeedbackTemplateMan
                         key={template.id}
                         className="flex items-start justify-between p-4 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
                       >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-medium">{template.name}</h4>
-                            <Badge variant="secondary">{template.tag_value}</Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-medium">{template.name}</h4>
+                              <Badge variant="secondary">{template.tag_value}</Badge>
+                              {template.use_ai && (
+                                <Badge variant="outline" className="gap-1">
+                                  <Sparkles className="w-3 h-3" />
+                                  AI
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground line-clamp-2">
+                              {template.use_ai ? (
+                                <span className="italic">提示词：{template.ai_prompt}</span>
+                              ) : (
+                                template.template
+                              )}
+                            </p>
                           </div>
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {template.template}
-                          </p>
-                        </div>
                         <div className="flex items-center gap-2 ml-4">
                           <Button
                             variant="ghost"
@@ -270,60 +297,91 @@ const FeedbackTemplateManager = ({ customFields, students }: FeedbackTemplateMan
                 </Select>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>话术内容</Label>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    插入变量：
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => insertVariable('姓名')}
-                    >
-                      {'{姓名}'}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => insertVariable('班级')}
-                    >
-                      {'{班级}'}
-                    </Button>
-                    {customFields.map(field => (
-                      <Button
-                        key={field.name}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => insertVariable(field.name)}
-                      >
-                        {`{${field.name}}`}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <Textarea
-                  id="template-content"
-                  value={templateContent}
-                  onChange={(e) => setTemplateContent(e.target.value)}
-                  placeholder="输入话术内容，可以使用变量如 {姓名}、{班级} 等..."
-                  rows={8}
-                  className="mt-2"
-                />
-              </div>
-
-              {templateContent && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <Label className="text-xs text-muted-foreground">预览效果（示例）</Label>
-                  <p className="text-sm mt-2 whitespace-pre-wrap">
-                    {templateContent
-                      .replace(/\{姓名\}/g, '张三')
-                      .replace(/\{班级\}/g, '一年级1班')
-                    }
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-0.5">
+                  <Label className="text-base">AI智能生成</Label>
+                  <p className="text-sm text-muted-foreground">
+                    使用AI为每位学生生成个性化反馈
                   </p>
                 </div>
+                <Switch checked={useAI} onCheckedChange={setUseAI} />
+              </div>
+
+              {useAI ? (
+                <div>
+                  <Label className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    AI提示词
+                  </Label>
+                  <Textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="输入AI生成提示词，例如：请根据学生的表现，重点关注学习态度和课堂参与度，给出鼓励性的反馈..."
+                    rows={6}
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    AI将根据此提示词和学生的具体信息（姓名、班级及自定义字段）生成个性化反馈
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>话术内容</Label>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        插入变量：
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => insertVariable('姓名')}
+                        >
+                          {'{姓名}'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => insertVariable('班级')}
+                        >
+                          {'{班级}'}
+                        </Button>
+                        {customFields.map(field => (
+                          <Button
+                            key={field.name}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => insertVariable(field.name)}
+                          >
+                            {`{${field.name}}`}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <Textarea
+                      id="template-content"
+                      value={templateContent}
+                      onChange={(e) => setTemplateContent(e.target.value)}
+                      placeholder="输入话术内容，可以使用变量如 {姓名}、{班级} 等..."
+                      rows={8}
+                      className="mt-2"
+                    />
+                  </div>
+
+                  {templateContent && (
+                    <div className="p-3 bg-muted rounded-lg">
+                      <Label className="text-xs text-muted-foreground">预览效果（示例）</Label>
+                      <p className="text-sm mt-2 whitespace-pre-wrap">
+                        {templateContent
+                          .replace(/\{姓名\}/g, '张三')
+                          .replace(/\{班级\}/g, '一年级1班')
+                        }
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </ScrollArea>
@@ -334,7 +392,12 @@ const FeedbackTemplateManager = ({ customFields, students }: FeedbackTemplateMan
             </Button>
             <Button 
               onClick={handleSave}
-              disabled={!selectedField || !selectedValue || !templateName || !templateContent}
+              disabled={
+                !selectedField || 
+                !selectedValue || 
+                !templateName || 
+                (useAI ? !aiPrompt : !templateContent)
+              }
             >
               保存模板
             </Button>
