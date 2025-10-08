@@ -9,14 +9,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, FileText, Sparkles } from 'lucide-react';
+import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, FileText } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
 import { useStudentData, Student } from '@/hooks/useStudentData';
+import { useFeedbackTemplates } from '@/hooks/useFeedbackTemplates';
+import FeedbackTemplateManager from '@/components/FeedbackTemplateManager';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 
 interface FeedbackSystemProps {
   students: Student[];
@@ -24,7 +24,8 @@ interface FeedbackSystemProps {
 
 const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const { feedbackRecords, loading, saveFeedbackRecord, getFeedbackByDate, getFeedbackByStudentIds } = useFeedbackData();
-  const { toast } = useToast();
+  const { customFields } = useStudentData();
+  const { templates, getTemplateForStudent, renderTemplate } = useFeedbackTemplates();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
@@ -33,7 +34,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [filterClass, setFilterClass] = useState<string>('all');
   const [searchName, setSearchName] = useState('');
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [selectedTemplateField, setSelectedTemplateField] = useState<string>('class');
 
   const moodIcons = {
     happy: { icon: Smile, color: 'text-green-500', bgColor: 'bg-green-50 border-green-200', label: '高兴' },
@@ -110,79 +111,6 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
     setShowFeedbackDialog(true);
   };
 
-  // AI生成反馈话术
-  const handleGenerateAIFeedback = async () => {
-    if (!currentStudentId || !currentStudent) return;
-
-    try {
-      setIsGeneratingAI(true);
-
-      // 获取学生的标签及其AI配置
-      const { data: studentTags, error: tagsError } = await supabase
-        .from('student_tags')
-        .select(`
-          tag_id,
-          tags!inner(
-            name,
-            ai_prompt,
-            use_for_feedback
-          )
-        `)
-        .eq('student_id', currentStudentId);
-
-      if (tagsError) throw tagsError;
-
-      // 筛选启用了AI反馈的标签
-      const aiTags = studentTags?.filter((st: any) => 
-        st.tags?.use_for_feedback && st.tags?.ai_prompt
-      ) || [];
-
-      if (aiTags.length === 0) {
-        toast({
-          title: "无可用标签",
-          description: "该学生没有设置AI反馈提示词的标签",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // 组合所有标签的提示词
-      const combinedPrompt = aiTags.map(st => {
-        const tag = st.tags as any;
-        return `【${tag.name}】${tag.ai_prompt}`;
-      }).join('\n\n');
-
-      // 调用AI生成
-      const { data, error } = await supabase.functions.invoke('generate-feedback', {
-        body: {
-          prompt: combinedPrompt,
-          studentInfo: {
-            姓名: currentStudent.name,
-            班级: currentStudent.class,
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      setFeedbackNotes(data.feedback);
-      
-      toast({
-        title: "生成成功",
-        description: "AI已生成反馈话术",
-      });
-    } catch (error: any) {
-      console.error('AI generation failed:', error);
-      toast({
-        title: "生成失败",
-        description: error.message || "请重试",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGeneratingAI(false);
-    }
-  };
-
   // 保存反馈
   const handleSaveFeedback = async () => {
     if (!currentStudentId) return;
@@ -252,7 +180,13 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   return (
     <div className="min-h-screen bg-gradient-subtle p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="space-y-6">
+        <Tabs defaultValue="feedback" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="feedback">反馈管理</TabsTrigger>
+            <TabsTrigger value="templates">话术模板</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="feedback" className="space-y-6 mt-6">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
@@ -433,7 +367,12 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
             </Card>
           </div>
         </div>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="templates" className="mt-6">
+            <FeedbackTemplateManager customFields={customFields} students={students} />
+          </TabsContent>
+        </Tabs>
 
         {/* 反馈对话框 */}
         <Dialog open={showFeedbackDialog} onOpenChange={setShowFeedbackDialog}>
@@ -475,33 +414,45 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
                 </div>
               </div>
 
-              {/* 备注和AI生成 */}
+              {/* 备注和模板 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium">反馈备注</label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs gap-1"
-                    onClick={handleGenerateAIFeedback}
-                    disabled={isGeneratingAI}
-                  >
-                    {isGeneratingAI ? (
-                      <>
-                        <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        生成中...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-3 h-3" />
-                        AI生成话术
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
+                      <SelectTrigger className="w-32 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="class">按班级</SelectItem>
+                        {customFields.map(field => (
+                          <SelectItem key={field.name} value={field.name}>
+                            按{field.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1"
+                      onClick={() => {
+                        if (!currentStudent) return;
+                        const template = getTemplateForStudent(currentStudent, selectedTemplateField);
+                        if (template) {
+                          const rendered = renderTemplate(template.template, currentStudent);
+                          setFeedbackNotes(rendered);
+                        }
+                      }}
+                    >
+                      <FileText className="w-3 h-3" />
+                      使用话术模板
+                    </Button>
+                  </div>
                 </div>
                 <Textarea
-                  placeholder="记录具体的反馈内容和沟通情况，或点击上方按钮使用AI生成..."
+                  placeholder="记录具体的反馈内容和沟通情况..."
                   value={feedbackNotes}
                   onChange={(e) => setFeedbackNotes(e.target.value)}
                   rows={6}
