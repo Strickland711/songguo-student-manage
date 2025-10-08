@@ -317,12 +317,20 @@ export const FormulaFieldEditor = ({ students }: { students: Student[] }) => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
+      {/* 页面标题 */}
+      <div>
+        <h3 className="text-lg font-semibold text-foreground mb-2">公式字段管理</h3>
+        <p className="text-sm text-muted-foreground">创建基于现有字段的计算公式，自动计算学生的衍生数据</p>
+      </div>
+
       {/* 创建公式字段 */}
-      <Card>
+      <Card className="border-0 bg-gradient-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5" />
+            <div className="h-8 w-8 rounded-lg bg-accent/10 flex items-center justify-center">
+              <Calculator className="h-5 w-5 text-accent" />
+            </div>
             创建公式字段
           </CardTitle>
           <CardDescription>
@@ -385,7 +393,7 @@ export const FormulaFieldEditor = ({ students }: { students: Student[] }) => {
             />
           </div>
 
-          <Button onClick={handleSaveFormula} disabled={loading}>
+          <Button onClick={handleSaveFormula} disabled={loading} variant="accent" size="lg" className="w-full sm:w-auto">
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -403,9 +411,14 @@ export const FormulaFieldEditor = ({ students }: { students: Student[] }) => {
 
       {/* 已创建的公式字段列表 */}
       {formulaFields.length > 0 && (
-        <Card>
+        <Card className="border-0 shadow-elegant">
           <CardHeader>
-            <CardTitle>已创建的公式字段</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-success/10 flex items-center justify-center">
+                <Calculator className="h-5 w-5 text-success" />
+              </div>
+              已创建的公式字段
+            </CardTitle>
             <CardDescription>
               选择学生并计算公式字段的值
             </CardDescription>
