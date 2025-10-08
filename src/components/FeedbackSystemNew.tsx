@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Smile, Meh, Frown, MessageSquare, Users, Calendar as CalendarIcon, Filter, BarChart3, Target, MessageCircle, Settings, Save, AlertTriangle, Clock, CheckCircle, XCircle, Plus, Trash2, Edit, FileText, Sparkles, Loader2 } from 'lucide-react';
 import StudentSegmentation from './StudentSegmentation';
-import AIFeedbackScriptGenerator from './AIFeedbackScriptGenerator';
+import { AIFeedbackScriptGenerator } from './feedback/AIFeedbackScriptGenerator';
 import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useFeedbackData, FeedbackRecord } from '@/hooks/useFeedbackData';
