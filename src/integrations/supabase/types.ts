@@ -450,36 +450,30 @@ export type Database = {
       }
       tags: {
         Row: {
-          ai_prompt: string | null
           color: string | null
           created_at: string
           description: string | null
           id: string
           name: string
           updated_at: string
-          use_for_feedback: boolean | null
           user_id: string
         }
         Insert: {
-          ai_prompt?: string | null
           color?: string | null
           created_at?: string
           description?: string | null
           id?: string
           name: string
           updated_at?: string
-          use_for_feedback?: boolean | null
           user_id: string
         }
         Update: {
-          ai_prompt?: string | null
           color?: string | null
           created_at?: string
           description?: string | null
           id?: string
           name?: string
           updated_at?: string
-          use_for_feedback?: boolean | null
           user_id?: string
         }
         Relationships: []

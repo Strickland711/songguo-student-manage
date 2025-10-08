@@ -1,12 +1,10 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from "@/hooks/useAuth";
+import FeedbackSystem from "@/components/FeedbackSystemNew";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import { useStudentData } from "@/hooks/useStudentData";
-import FeedbackSystem from "@/components/FeedbackSystem";
-import SimpleTagManager from "@/components/SimpleTagManager";
 
 const FeedbackPage = () => {
   const { user, loading } = useAuth();
@@ -59,18 +57,7 @@ const FeedbackPage = () => {
       </header>
       
       <main className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="feedback" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="feedback">反馈记录</TabsTrigger>
-            <TabsTrigger value="tags">标签管理</TabsTrigger>
-          </TabsList>
-          <TabsContent value="feedback" className="mt-6">
-            <FeedbackSystem students={students} />
-          </TabsContent>
-          <TabsContent value="tags" className="mt-6">
-            <SimpleTagManager />
-          </TabsContent>
-        </Tabs>
+        <FeedbackSystem students={students} />
       </main>
     </div>
   );
