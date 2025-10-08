@@ -16,6 +16,7 @@ import ClassSpace from './ClassSpace';
 import TagDragSystem from './TagDragSystem';
 import StudentSpace from './StudentSpace';
 import TagGenerator from './TagGenerator';
+import { FormulaFieldEditor } from './FormulaFieldEditor';
 
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
 import { supabase } from '@/integrations/supabase/client';
@@ -595,12 +596,13 @@ const StudentDashboard = () => {
         </div>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-fit">
+          <TabsList className="grid grid-cols-6 w-fit">
             <TabsTrigger value="dashboard">数据导入</TabsTrigger>
             <TabsTrigger value="students">学生管理</TabsTrigger>
             <TabsTrigger value="classes">班级空间</TabsTrigger>
             <TabsTrigger value="generator">标签生成器</TabsTrigger>
             <TabsTrigger value="settings">标签设置</TabsTrigger>
+            <TabsTrigger value="formula">公式编辑</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -1007,6 +1009,10 @@ const StudentDashboard = () => {
 
           <TabsContent value="generator" className="space-y-6">
             <TagGenerator students={students} onClose={() => {}} />
+          </TabsContent>
+
+          <TabsContent value="formula" className="space-y-6">
+            <FormulaFieldEditor students={students} />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
