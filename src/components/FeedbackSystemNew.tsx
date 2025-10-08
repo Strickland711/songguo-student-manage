@@ -36,11 +36,9 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [currentNotesStudent, setCurrentNotesStudent] = useState<{ id: string, name: string } | null>(null);
   const [notesInput, setNotesInput] = useState('');
-  const [selectedTemplateField, setSelectedTemplateField] = useState<string>('class');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   
   const { toast } = useToast();
-  const { getTemplateForStudent, renderTemplate, generateWithAI } = useFeedbackTemplates();
 
   // 页面离开提示
   useEffect(() => {
@@ -532,48 +530,116 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">反馈备注</label>
-                  <div className="flex items-center gap-2">
-                    <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
-                      <SelectTrigger className="h-8 w-32 text-xs">
-                        <SelectValue placeholder="选择字段" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="class">按班级</SelectItem>
-                        {customFields?.map(field => (
-                          <SelectItem key={field.name} value={field.name}>
-                            按{field.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="text-xs gap-1"
-                      onClick={() => {
-                        if (!currentNotesStudent) {
-                          toast({ title: '未选择学生', description: '请先选择学生', variant: 'destructive' });
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs gap-1"
+                    disabled={isGeneratingAI}
+                    onClick={async () => {
+                      if (!currentNotesStudent) {
+                        toast({ title: '未选择学生', description: '请先选择学生', variant: 'destructive' });
+                        return;
+                      }
+                      const student = students.find(s => s.id === currentNotesStudent.id);
+                      if (!student) {
+                        toast({ title: '学生不存在', description: '无法找到该学生信息', variant: 'destructive' });
+                        return;
+                      }
+
+                      setIsGeneratingAI(true);
+                      try {
+                        // 获取学生的所有标签
+                        const { data: studentTagsData, error: studentTagsError } = await supabase
+                          .from('student_tags')
+                          .select('tag_id')
+                          .eq('student_id', student.id);
+
+                        if (studentTagsError) throw studentTagsError;
+
+                        if (!studentTagsData || studentTagsData.length === 0) {
+                          toast({
+                            title: '无可用标签',
+                            description: '该学生没有任何标签，请先为学生打标签',
+                            variant: 'default',
+                          });
                           return;
                         }
-                        const student = students.find(s => s.id === currentNotesStudent.id);
-                        if (!student) {
-                          toast({ title: '学生不存在', description: '无法找到该学生信息', variant: 'destructive' });
+
+                        const tagIds = studentTagsData.map(t => t.tag_id);
+
+                        // 获取这些标签中启用了AI反馈的标签
+                        const { data: tagsData, error: tagsError } = await supabase
+                          .from('tags')
+                          .select('*')
+                          .in('id', tagIds)
+                          .eq('use_for_feedback', true);
+
+                        if (tagsError) throw tagsError;
+
+                        if (!tagsData || tagsData.length === 0) {
+                          toast({
+                            title: '无可用的AI标签',
+                            description: '该学生的标签中没有启用AI反馈功能的，请在标签管理中启用',
+                            variant: 'default',
+                          });
                           return;
                         }
-                        const template = getTemplateForStudent(student as any, selectedTemplateField);
-                        if (!template) {
-                          toast({ title: '未找到话术模板', description: `请为“${selectedTemplateField}”配置相应模板`, variant: 'default' });
-                          return;
+
+                        // 汇总所有AI提示词
+                        const combinedPrompt = tagsData
+                          .map(tag => `【${tag.name}】${tag.ai_prompt}`)
+                          .join('\n\n');
+
+                        // 调用AI生成
+                        const { data: aiData, error: aiError } = await supabase.functions.invoke('generate-feedback', {
+                          body: {
+                            prompt: combinedPrompt,
+                            studentInfo: {
+                              姓名: student.name,
+                              班级: student.class,
+                              ...Object.fromEntries(
+                                customFields.map(field => [field.name, student[field.name]])
+                              )
+                            }
+                          }
+                        });
+
+                        if (aiError) throw aiError;
+
+                        if (aiData?.feedback) {
+                          setNotesInput(aiData.feedback);
+                          toast({
+                            title: '生成成功',
+                            description: 'AI已根据学生标签生成反馈话术',
+                          });
+                        } else {
+                          throw new Error('AI返回数据格式错误');
                         }
-                        const rendered = renderTemplate(template.template, student as any);
-                        setNotesInput(rendered);
-                      }}
-                    >
-                      <FileText className="w-3 h-3" />
-                      使用话术模板
-                    </Button>
-                  </div>
+                      } catch (error: any) {
+                        console.error('AI生成失败:', error);
+                        toast({
+                          title: 'AI生成失败',
+                          description: error.message || '生成反馈时发生错误，请重试',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setIsGeneratingAI(false);
+                      }
+                    }}
+                  >
+                    {isGeneratingAI ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        生成中...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3" />
+                        AI生成话术
+                      </>
+                    )}
+                  </Button>
                 </div>
                 <Textarea
                   placeholder="请输入反馈备注..."
@@ -612,7 +678,7 @@ const FeedbackSystem = ({ students }: FeedbackSystemProps) => {
         </TabsContent>
 
         <TabsContent value="scripts" className="space-y-6">
-          <FeedbackTemplateManager customFields={customFields} students={students} />
+          <SimpleTagManager />
         </TabsContent>
       </Tabs>
     </div>
