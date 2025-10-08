@@ -36,9 +36,8 @@ const AIFeedbackScriptGenerator = ({ students }: AIFeedbackScriptGeneratorProps)
   const [searchName, setSearchName] = useState('');
 
   // 勾选项状态
-  const [includeTags, setIncludeTags] = useState(true);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [includeExams, setIncludeExams] = useState(true);
-  const [includeScores, setIncludeScores] = useState(true);
   const [customPrompt, setCustomPrompt] = useState('');
 
   useEffect(() => {
@@ -96,9 +95,9 @@ const AIFeedbackScriptGenerator = ({ students }: AIFeedbackScriptGeneratorProps)
   const handleOpenDialog = (student: StudentWithTags) => {
     setCurrentStudent(student);
     setGeneratedScript('');
-    setIncludeTags(true);
+    // 默认选中所有标签
+    setSelectedTagIds(student.tags?.map(t => t.id) || []);
     setIncludeExams(true);
-    setIncludeScores(true);
     setCustomPrompt('');
     setShowDialog(true);
   };
@@ -116,10 +115,13 @@ const AIFeedbackScriptGenerator = ({ students }: AIFeedbackScriptGeneratorProps)
 
       let contextPrompt = '';
 
-      // 1. 包含标签信息
-      if (includeTags && currentStudent.tags && currentStudent.tags.length > 0) {
-        const tagNames = currentStudent.tags.map(t => t.name).join('、');
-        contextPrompt += `学生标签：${tagNames}\n`;
+      // 1. 包含选中的标签信息
+      if (selectedTagIds.length > 0 && currentStudent.tags && currentStudent.tags.length > 0) {
+        const selectedTags = currentStudent.tags.filter(t => selectedTagIds.includes(t.id));
+        if (selectedTags.length > 0) {
+          const tagNames = selectedTags.map(t => t.name).join('、');
+          contextPrompt += `学生标签：${tagNames}\n`;
+        }
       }
 
       // 2. 包含考试成绩
@@ -140,34 +142,7 @@ const AIFeedbackScriptGenerator = ({ students }: AIFeedbackScriptGeneratorProps)
         }
       }
 
-      // 3. 包含评分记录
-      if (includeScores) {
-        const { data: scoringRecords } = await supabase
-          .from('scoring_records')
-          .select('*')
-          .eq('student_id', currentStudent.id)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        if (scoringRecords && scoringRecords.length > 0) {
-          contextPrompt += '\n近期评分记录：\n';
-          const categoryScores: Record<string, number[]> = {};
-          scoringRecords.forEach((record: any) => {
-            if (!categoryScores[record.category]) {
-              categoryScores[record.category] = [];
-            }
-            categoryScores[record.category].push(Number(record.score));
-          });
-
-          Object.entries(categoryScores).forEach(([category, scores]) => {
-            const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
-            contextPrompt += `- ${category}：平均${avg}分（共${scores.length}次记录）\n`;
-          });
-        }
-      }
-
-      // 4. 添加自定义提示
+      // 3. 添加自定义提示
       if (customPrompt.trim()) {
         contextPrompt += `\n教师备注：${customPrompt}\n`;
       }
@@ -343,25 +318,43 @@ ${contextPrompt}`;
               <div className="space-y-3">
                 <Label className="text-base font-semibold">AI参考信息</Label>
                 
-                <div className="flex items-center space-x-2 p-3 border rounded-lg">
-                  <Checkbox 
-                    id="include-tags" 
-                    checked={includeTags}
-                    onCheckedChange={(checked) => setIncludeTags(checked as boolean)}
-                  />
-                  <label
-                    htmlFor="include-tags"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                  >
-                    学生标签
-                    {currentStudent?.tags && currentStudent.tags.length > 0 && (
-                      <span className="text-muted-foreground ml-2">
-                        （{currentStudent.tags.length}个标签）
-                      </span>
-                    )}
-                  </label>
-                </div>
+                {/* 学生标签选择 */}
+                {currentStudent?.tags && currentStudent.tags.length > 0 && (
+                  <div className="space-y-2 p-3 border rounded-lg">
+                    <Label className="text-sm font-medium">学生标签（可多选）</Label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {currentStudent.tags.map(tag => {
+                        const isSelected = selectedTagIds.includes(tag.id);
+                        return (
+                          <Badge
+                            key={tag.id}
+                            variant={isSelected ? "default" : "outline"}
+                            className="cursor-pointer transition-all"
+                            style={isSelected ? { 
+                              backgroundColor: tag.color,
+                              borderColor: tag.color,
+                              color: 'white'
+                            } : {
+                              borderColor: tag.color,
+                              color: tag.color
+                            }}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedTagIds(selectedTagIds.filter(id => id !== tag.id));
+                              } else {
+                                setSelectedTagIds([...selectedTagIds, tag.id]);
+                              }
+                            }}
+                          >
+                            {tag.name}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
+                {/* 考试成绩 */}
                 <div className="flex items-center space-x-2 p-3 border rounded-lg">
                   <Checkbox 
                     id="include-exams" 
@@ -374,21 +367,6 @@ ${contextPrompt}`;
                   >
                     考试成绩记录
                     <span className="text-muted-foreground ml-2">（近5次考试）</span>
-                  </label>
-                </div>
-
-                <div className="flex items-center space-x-2 p-3 border rounded-lg">
-                  <Checkbox 
-                    id="include-scores" 
-                    checked={includeScores}
-                    onCheckedChange={(checked) => setIncludeScores(checked as boolean)}
-                  />
-                  <label
-                    htmlFor="include-scores"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                  >
-                    评分记录
-                    <span className="text-muted-foreground ml-2">（近10次评分）</span>
                   </label>
                 </div>
               </div>
@@ -435,7 +413,7 @@ ${contextPrompt}`;
             </Button>
             <Button 
               onClick={handleGenerate}
-              disabled={isGenerating || (!includeTags && !includeExams && !includeScores && !customPrompt.trim())}
+              disabled={isGenerating || (selectedTagIds.length === 0 && !includeExams && !customPrompt.trim())}
               className="gap-2"
             >
               {isGenerating ? (
