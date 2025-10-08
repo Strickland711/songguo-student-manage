@@ -4,11 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Edit, Trash2, Tag, Sparkles } from 'lucide-react';
+import { Plus, Edit, Trash2, Tag } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,8 +16,6 @@ interface TagData {
   name: string;
   color: string;
   description?: string;
-  ai_prompt?: string;
-  use_for_feedback: boolean;
   created_at?: string;
 }
 
@@ -33,9 +29,7 @@ const SimpleTagManager = () => {
   const [formData, setFormData] = useState<Omit<TagData, 'id' | 'created_at'>>({
     name: '',
     color: '#3B82F6',
-    description: '',
-    ai_prompt: '',
-    use_for_feedback: false
+    description: ''
   });
 
   useEffect(() => {
@@ -74,18 +68,14 @@ const SimpleTagManager = () => {
       setFormData({
         name: tag.name,
         color: tag.color,
-        description: tag.description || '',
-        ai_prompt: tag.ai_prompt || '',
-        use_for_feedback: tag.use_for_feedback
+        description: tag.description || ''
       });
     } else {
       setEditingTag(null);
       setFormData({
         name: '',
         color: '#3B82F6',
-        description: '',
-        ai_prompt: '',
-        use_for_feedback: false
+        description: ''
       });
     }
     setShowDialog(true);
@@ -101,15 +91,6 @@ const SimpleTagManager = () => {
       return;
     }
 
-    if (formData.use_for_feedback && !formData.ai_prompt?.trim()) {
-      toast({
-        title: "错误",
-        description: "启用AI反馈时必须设置提示词",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       if (editingTag) {
         const { error } = await supabase
@@ -117,9 +98,7 @@ const SimpleTagManager = () => {
           .update({
             name: formData.name,
             color: formData.color,
-            description: formData.description || null,
-            ai_prompt: formData.ai_prompt || null,
-            use_for_feedback: formData.use_for_feedback
+            description: formData.description || null
           })
           .eq('id', editingTag.id)
           .eq('user_id', user.id);
@@ -137,9 +116,7 @@ const SimpleTagManager = () => {
             user_id: user.id,
             name: formData.name,
             color: formData.color,
-            description: formData.description || null,
-            ai_prompt: formData.ai_prompt || null,
-            use_for_feedback: formData.use_for_feedback
+            description: formData.description || null
           });
 
         if (error) throw error;
@@ -204,7 +181,7 @@ const SimpleTagManager = () => {
         <div>
           <h2 className="text-2xl font-bold text-primary">标签管理</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            创建和管理学生标签，启用AI功能可为每个标签生成个性化反馈
+            创建和管理学生标签，用于分类和管理学生
           </p>
         </div>
         <Button onClick={() => handleOpenDialog()} className="gap-2">
@@ -236,21 +213,9 @@ const SimpleTagManager = () => {
                         style={{ backgroundColor: tag.color }}
                       />
                       <h3 className="text-lg font-semibold">{tag.name}</h3>
-                      {tag.use_for_feedback && (
-                        <Badge variant="outline" className="gap-1">
-                          <Sparkles className="w-3 h-3" />
-                          AI反馈
-                        </Badge>
-                      )}
                     </div>
                     {tag.description && (
-                      <p className="text-sm text-muted-foreground mb-3">{tag.description}</p>
-                    )}
-                    {tag.use_for_feedback && tag.ai_prompt && (
-                      <div className="mt-3 p-3 bg-muted/30 rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">AI提示词：</p>
-                        <p className="text-sm italic">{tag.ai_prompt}</p>
-                      </div>
+                      <p className="text-sm text-muted-foreground">{tag.description}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 ml-4">
@@ -283,7 +248,7 @@ const SimpleTagManager = () => {
               {editingTag ? '编辑标签' : '新建标签'}
             </DialogTitle>
             <DialogDescription>
-              设置标签信息，启用AI功能后可为打上该标签的学生生成个性化反馈
+              设置标签的名称、颜色和描述信息
             </DialogDescription>
           </DialogHeader>
 
@@ -315,7 +280,7 @@ const SimpleTagManager = () => {
               </div>
 
               <div>
-                <Label htmlFor="description">标签描述</Label>
+                <Label htmlFor="description">标签描述（可选）</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
@@ -325,39 +290,6 @@ const SimpleTagManager = () => {
                   className="mt-2"
                 />
               </div>
-
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="space-y-0.5">
-                  <Label className="text-base">启用AI反馈生成</Label>
-                  <p className="text-sm text-muted-foreground">
-                    使用AI为拥有此标签的学生生成个性化反馈话术
-                  </p>
-                </div>
-                <Switch 
-                  checked={formData.use_for_feedback} 
-                  onCheckedChange={(checked) => setFormData({ ...formData, use_for_feedback: checked })}
-                />
-              </div>
-
-              {formData.use_for_feedback && (
-                <div>
-                  <Label htmlFor="ai_prompt" className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    AI提示词 *
-                  </Label>
-                  <Textarea
-                    id="ai_prompt"
-                    value={formData.ai_prompt}
-                    onChange={(e) => setFormData({ ...formData, ai_prompt: e.target.value })}
-                    placeholder="输入AI生成提示词，例如：这是一位学习非常认真的学生，请重点表扬他的学习态度和课堂表现..."
-                    rows={6}
-                    className="mt-2"
-                  />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    AI将根据此提示词和学生的具体信息（姓名、班级等）生成个性化反馈
-                  </p>
-                </div>
-              )}
             </div>
           </ScrollArea>
 
@@ -367,7 +299,7 @@ const SimpleTagManager = () => {
             </Button>
             <Button 
               onClick={handleSave}
-              disabled={!formData.name.trim() || (formData.use_for_feedback && !formData.ai_prompt?.trim())}
+              disabled={!formData.name.trim()}
             >
               {editingTag ? '保存' : '创建'}
             </Button>
