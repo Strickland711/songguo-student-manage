@@ -90,9 +90,7 @@ export default {
 			},
 			boxShadow: {
 				'elegant': 'var(--shadow-elegant)',
-				'card': 'var(--shadow-card)',
-				'hover': 'var(--shadow-hover)',
-				'glow': 'var(--shadow-glow)'
+				'card': 'var(--shadow-card)'
 			},
 			transitionProperty: {
 				'smooth': 'var(--transition-smooth)'

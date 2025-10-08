@@ -555,153 +555,102 @@ const StudentDashboard = () => {
   }
 
   return (
-    <div className="space-y-8">
-      {/* 统计卡片区域 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-card border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">学生总数</p>
-                <p className="text-3xl font-bold text-primary mt-2">{students.length}</p>
-              </div>
-              <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center">
-                <Users className="h-6 w-6 text-accent" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-elegant cursor-pointer transition-all" onClick={() => setShowScoringSystem(true)}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">登分系统</p>
-                <p className="text-sm text-accent-foreground mt-2">快速录入成绩</p>
-              </div>
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <BookOpen className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-elegant cursor-pointer transition-all" onClick={() => navigate('/feedback')}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">反馈系统</p>
-                <p className="text-sm text-accent-foreground mt-2">AI 辅助反馈</p>
-              </div>
-              <div className="h-12 w-12 rounded-lg bg-success/10 flex items-center justify-center">
-                <MessageSquare className="h-6 w-6 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-elegant cursor-pointer transition-all" onClick={() => setShowExportDialog(true)}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">数据导出</p>
-                <p className="text-sm text-accent-foreground mt-2">Excel 导出</p>
-              </div>
-              <div className="h-12 w-12 rounded-lg bg-warning/10 flex items-center justify-center">
-                <Download className="h-6 w-6 text-warning" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 主要功能区 */}
-      <Card className="border-0 shadow-elegant">
-        <Tabs defaultValue="dashboard" className="w-full">
-          <div className="border-b bg-muted/30">
-            <TabsList className="h-auto p-2 bg-transparent w-full justify-start gap-2">
-              <TabsTrigger value="dashboard" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg">
-                <Upload className="w-4 h-4 mr-2" />
-                数据导入
-              </TabsTrigger>
-              <TabsTrigger value="students" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg">
-                <Users className="w-4 h-4 mr-2" />
-                学生管理
-              </TabsTrigger>
-              <TabsTrigger value="classes" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg">
-                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                班级空间
-              </TabsTrigger>
-              <TabsTrigger value="generator" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg">
-                <Plus className="w-4 h-4 mr-2" />
-                标签生成器
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg">
-                <Settings className="w-4 h-4 mr-2" />
-                标签设置
-              </TabsTrigger>
-              <TabsTrigger value="formula" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg">
-                <Edit className="w-4 h-4 mr-2" />
-                公式编辑
-              </TabsTrigger>
-            </TabsList>
+    <div className="min-h-screen bg-gradient-subtle p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-primary">学生管理系统</h1>
+            <p className="text-muted-foreground mt-2">高效管理学生信息，支持Excel导入和自定义标签</p>
           </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="px-3 py-1">
+              <Users className="w-4 h-4 mr-1" />
+              {students.length} 名学生
+            </Badge>
+            <Button 
+              onClick={() => setShowScoringSystem(true)} 
+              variant="outline"
+              disabled={students.length === 0}
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              进入登分系统
+            </Button>
+            <Button 
+              onClick={() => navigate('/feedback')} 
+              variant="outline"
+              disabled={students.length === 0}
+            >
+              <MessageSquare className="w-4 h-4 mr-2" />
+              进入反馈系统
+            </Button>
+            <Button 
+              onClick={() => setShowExportDialog(true)} 
+              variant="outline" 
+              disabled={students.length === 0}
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              导出Excel
+            </Button>
+          </div>
+        </div>
 
-          <TabsContent value="dashboard" className="p-6 space-y-6">
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          <TabsList className="grid grid-cols-6 w-fit">
+            <TabsTrigger value="dashboard">数据导入</TabsTrigger>
+            <TabsTrigger value="students">学生管理</TabsTrigger>
+            <TabsTrigger value="classes">班级空间</TabsTrigger>
+            <TabsTrigger value="generator">标签生成器</TabsTrigger>
+            <TabsTrigger value="settings">标签设置</TabsTrigger>
+            <TabsTrigger value="formula">公式编辑</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dashboard" className="space-y-6">
             {!excelData ? (
               // Upload Section
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">导入学生数据</h3>
-                  <p className="text-sm text-muted-foreground">上传 Excel 文件快速导入学生信息，支持自定义标签映射</p>
-                </div>
-                <div 
-                  className="relative border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer hover:border-accent/50 hover:bg-accent/5 transition-all group"
-                  onClick={() => document.getElementById('excel-upload')?.click()}
-                >
-                  <div className="space-y-4">
-                    <div className="h-16 w-16 rounded-full bg-gradient-accent flex items-center justify-center mx-auto shadow-glow group-hover:scale-110 transition-transform">
-                      <Upload className="w-8 h-8 text-white" />
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-lg font-semibold text-foreground">
-                        点击或拖拽上传 Excel 文件
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        支持 .xlsx 和 .xls 格式，自动识别列标题
-                      </p>
-                    </div>
-                  </div>
-                  <Input
-                    id="excel-upload"
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                    className="hidden"
-                  />
-                  {uploading && (
-                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                      <div className="flex items-center gap-3 text-accent">
-                        <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                        <span className="font-medium">正在解析文件...</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* 手动添加学生按钮 */}
-                <div className="flex justify-center pt-6 border-t">
-                  <Button 
-                    variant="outline" 
-                    size="lg"
-                    onClick={() => setShowAddStudentDialog(true)}
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-accent" />
+                    Excel文件上传
+                  </CardTitle>
+                  <CardDescription>
+                    上传包含学生信息的Excel文件，然后配置列与标签的对应关系
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div 
+                    className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => document.getElementById('excel-upload')?.click()}
                   >
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    手动添加学生
-                  </Button>
-                </div>
-              </div>
+                    <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <div className="space-y-2">
+                      <span className="text-lg font-medium text-primary">
+                        点击上传Excel文件
+                      </span>
+                      <p className="text-sm text-muted-foreground">
+                        支持.xlsx和.xls格式，上传后可自定义列与标签的映射关系
+                      </p>
+                    </div>
+                    <Input
+                      id="excel-upload"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileUpload}
+                      disabled={uploading}
+                      className="hidden"
+                    />
+                    {uploading && (
+                      <div className="mt-4">
+                        <div className="inline-flex items-center gap-2 text-accent">
+                          <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                          正在解析文件...
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             ) : (
               // Column Mapping Section
               <Card className="shadow-card">
@@ -1139,7 +1088,7 @@ const StudentDashboard = () => {
             />
           </TabsContent>
         </Tabs>
-      </Card>
+      </div>
 
       {/* 导出Excel选项对话框 */}
       <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
