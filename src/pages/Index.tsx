@@ -1,11 +1,15 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import StudentDashboard from "@/components/StudentDashboard";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Shield, Crown } from "lucide-react";
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
+  const { isAdmin, membershipTier } = useUserRole();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,9 +43,28 @@ const Index = () => {
               <Button variant="outline" size="sm" onClick={() => navigate('/intro')}>
                 产品介绍
               </Button>
-              <span className="text-sm text-foreground">
-                欢迎，{user.user_metadata?.full_name || user.email}
-              </span>
+              {isAdmin && (
+                <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
+                  <Shield className="h-4 w-4 mr-1" />
+                  管理员面板
+                </Button>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-foreground">
+                  欢迎，{user.user_metadata?.full_name || user.email}
+                </span>
+                {isAdmin && (
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <Crown className="h-3 w-3" />
+                    管理员
+                  </Badge>
+                )}
+                {membershipTier !== 'free' && (
+                  <Badge variant="secondary">
+                    {membershipTier === 'premium' ? '高级会员' : '企业会员'}
+                  </Badge>
+                )}
+              </div>
               <Button variant="ghost" size="sm" onClick={signOut}>
                 退出登录
               </Button>

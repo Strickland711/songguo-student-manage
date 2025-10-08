@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare, Download } from 'lucide-react';
+import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare, Download, Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
@@ -17,6 +17,7 @@ import TagDragSystem from './TagDragSystem';
 import StudentSpace from './StudentSpace';
 import TagGenerator from './TagGenerator';
 import { FormulaFieldEditor } from './FormulaFieldEditor';
+import { useUserRole } from '@/hooks/useUserRole';
 
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +36,7 @@ interface ExcelData {
 
 const StudentDashboard = () => {
   const { user } = useAuth();
+  const { hasAccess, membershipTier } = useUserRole();
   const {
     students,
     customFields,
@@ -601,8 +603,18 @@ const StudentDashboard = () => {
             <TabsTrigger value="students">学生管理</TabsTrigger>
             <TabsTrigger value="classes">班级空间</TabsTrigger>
             <TabsTrigger value="generator">标签生成器</TabsTrigger>
-            <TabsTrigger value="settings">标签设置</TabsTrigger>
-            <TabsTrigger value="formula">公式编辑</TabsTrigger>
+            <TabsTrigger value="settings" disabled={!hasAccess('scoring')}>
+              <div className="flex items-center gap-2">
+                标签设置
+                {!hasAccess('scoring') && <Lock className="h-3 w-3" />}
+              </div>
+            </TabsTrigger>
+            <TabsTrigger value="formula" disabled={!hasAccess('scoring')}>
+              <div className="flex items-center gap-2">
+                公式编辑
+                {!hasAccess('scoring') && <Lock className="h-3 w-3" />}
+              </div>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -1012,80 +1024,112 @@ const StudentDashboard = () => {
           </TabsContent>
 
           <TabsContent value="formula" className="space-y-6">
-            <FormulaFieldEditor students={students} />
+            {hasAccess('scoring') ? (
+              <FormulaFieldEditor students={students} />
+            ) : (
+              <div className="flex flex-col items-center justify-center p-12 text-center space-y-4">
+                <Lock className="h-16 w-16 text-muted-foreground" />
+                <h3 className="text-xl font-semibold">需要升级会员</h3>
+                <p className="text-muted-foreground max-w-md">
+                  公式编辑功能需要高级会员或企业会员权限。
+                  <br />
+                  请联系管理员升级您的账户。
+                </p>
+                <Badge variant="outline">
+                  当前等级: {membershipTier === 'free' ? '免费用户' : membershipTier === 'premium' ? '高级会员' : '企业会员'}
+                </Badge>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            {/* Custom Fields Management */}
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle>自定义标签管理</CardTitle>
-                <CardDescription>添加或删除学生信息的自定义标签</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor="field-name">标签名称</Label>
-                    <Input
-                      id="field-name"
-                      value={newFieldName}
-                      onChange={(e) => setNewFieldName(e.target.value)}
-                      placeholder="输入标签名称"
-                    />
-                  </div>
-                  <div className="w-32">
-                    <Label htmlFor="field-type">标签类型</Label>
-                    <select
-                      id="field-type"
-                      value={newFieldType}
-                      onChange={(e) => setNewFieldType(e.target.value as any)}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                    >
-                      <option value="text">文本</option>
-                      <option value="number">数字</option>
-                      <option value="date">日期</option>
-                      <option value="email">邮箱</option>
-                    </select>
-                  </div>
-                  <div className="flex items-end">
-                    <Button onClick={addCustomField} disabled={!newFieldName.trim()}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      添加标签
-                    </Button>
-                  </div>
-                </div>
-
-                {customFields.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium">已添加的标签</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {customFields.map(field => (
-                        <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <span className="font-medium">{field.name}</span>
-                            <Badge variant="secondary" className="ml-2">{field.type}</Badge>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => removeCustomField(field.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
+            {hasAccess('scoring') ? (
+              <>
+                {/* Custom Fields Management */}
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle>自定义标签管理</CardTitle>
+                    <CardDescription>添加或删除学生信息的自定义标签</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <Label htmlFor="field-name">标签名称</Label>
+                        <Input
+                          id="field-name"
+                          value={newFieldName}
+                          onChange={(e) => setNewFieldName(e.target.value)}
+                          placeholder="输入标签名称"
+                        />
+                      </div>
+                      <div className="w-32">
+                        <Label htmlFor="field-type">标签类型</Label>
+                        <select
+                          id="field-type"
+                          value={newFieldType}
+                          onChange={(e) => setNewFieldType(e.target.value as any)}
+                          className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                        >
+                          <option value="text">文本</option>
+                          <option value="number">数字</option>
+                          <option value="date">日期</option>
+                          <option value="email">邮箱</option>
+                        </select>
+                      </div>
+                      <div className="flex items-end">
+                        <Button onClick={addCustomField} disabled={!newFieldName.trim()}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          添加标签
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
-            {/* Tag Drag Management */}
-            <TagDragSystem 
-              students={students}
-              customFields={customFields}
-              onUpdateStudents={saveStudents}
-            />
+                    {customFields.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium">已添加的标签</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {customFields.map(field => (
+                            <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div>
+                                <span className="font-medium">{field.name}</span>
+                                <Badge variant="secondary" className="ml-2">{field.type}</Badge>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => removeCustomField(field.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Tag Drag Management */}
+                <TagDragSystem 
+                  students={students}
+                  customFields={customFields}
+                  onUpdateStudents={saveStudents}
+                />
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-12 text-center space-y-4">
+                <Lock className="h-16 w-16 text-muted-foreground" />
+                <h3 className="text-xl font-semibold">需要升级会员</h3>
+                <p className="text-muted-foreground max-w-md">
+                  标签设置功能需要高级会员或企业会员权限。
+                  <br />
+                  请联系管理员升级您的账户。
+                </p>
+                <Badge variant="outline">
+                  当前等级: {membershipTier === 'free' ? '免费用户' : membershipTier === 'premium' ? '高级会员' : '企业会员'}
+                </Badge>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
