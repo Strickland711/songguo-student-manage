@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from "@/hooks/useAuth";
-import FeedbackSystem from "@/components/FeedbackSystemNew";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import { useStudentData } from "@/hooks/useStudentData";
+import AIFeedbackGenerator from "@/components/AIFeedbackGenerator";
+import SimpleTagManager from "@/components/SimpleTagManager";
 
 const FeedbackPage = () => {
   const { user, loading } = useAuth();
@@ -45,8 +47,8 @@ const FeedbackPage = () => {
                 返回主界面
               </Button>
               <div>
-                <h1 className="text-xl font-semibold text-primary">反馈系统</h1>
-                <p className="text-sm text-muted-foreground">管理学生家长反馈情况</p>
+                <h1 className="text-xl font-semibold text-primary">AI反馈系统</h1>
+                <p className="text-sm text-muted-foreground">基于标签的智能反馈生成</p>
               </div>
             </div>
             <span className="text-sm text-foreground">
@@ -57,7 +59,18 @@ const FeedbackPage = () => {
       </header>
       
       <main className="container mx-auto px-4 py-6">
-        <FeedbackSystem students={students} />
+        <Tabs defaultValue="generate" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="generate">生成反馈</TabsTrigger>
+            <TabsTrigger value="tags">标签管理</TabsTrigger>
+          </TabsList>
+          <TabsContent value="generate" className="mt-6">
+            <AIFeedbackGenerator students={students} />
+          </TabsContent>
+          <TabsContent value="tags" className="mt-6">
+            <SimpleTagManager />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
