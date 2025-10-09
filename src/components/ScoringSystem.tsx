@@ -75,10 +75,9 @@ interface ExcelData {
 
 interface ScoringSystemProps {
   students: Student[];
-  onClose: () => void;
 }
 
-const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
+const ScoringSystem = ({ students }: ScoringSystemProps) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('create');
   const [exams, setExams] = useState<ExamConfig[]>([]);
@@ -954,30 +953,21 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
   const currentStudent = isScoring && filteredStudents[currentStudentIndex];
 
   return (
-    <div className="min-h-screen bg-gradient-subtle p-6" ref={containerRef}>
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary">登分系统</h1>
-            <p className="text-muted-foreground mt-2">高效的考试评分和成绩管理系统</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="secondary" className="px-3 py-1">
-              <Trophy className="w-4 h-4 mr-1" />
-              {exams.length} 场考试
-            </Badge>
-            <Button onClick={() => setShowKeySettings(true)} variant="outline">
-              <Keyboard className="w-4 h-4 mr-2" />
-              快捷键设置
-            </Button>
-            <Button onClick={onClose} variant="outline">
-              返回
-            </Button>
-          </div>
+    <div className="space-y-6" ref={containerRef}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="px-3 py-1">
+            <Trophy className="w-4 h-4 mr-1" />
+            {exams.length} 场考试
+          </Badge>
         </div>
+        <Button onClick={() => setShowKeySettings(true)} variant="outline">
+          <Keyboard className="w-4 h-4 mr-2" />
+          快捷键设置
+        </Button>
+      </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid grid-cols-4 w-fit">
             <TabsTrigger value="create">创建考试</TabsTrigger>
             <TabsTrigger value="scoring">开始评分</TabsTrigger>
@@ -2464,11 +2454,10 @@ const ScoringSystem = ({ students, onClose }: ScoringSystemProps) => {
           </DialogContent>
         </Dialog>
       </div>
-    </div>
-  );
-};
-
-// ResultsView 组件 - 查看成绩的新界面
+    );
+  };
+  
+  // ResultsView 组件 - 查看成绩的新界面
 const ResultsView = ({ 
   exams, 
   students, 
@@ -2751,6 +2740,8 @@ const ResultsView = ({
           </CardContent>
         )}
       </Card>
+    </TabsContent>
+    </Tabs>
     </div>
   );
 };

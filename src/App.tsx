@@ -4,12 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import Auth from './pages/Auth';
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import FeedbackPage from "./pages/FeedbackPage";
-import ProductIntro from "./pages/ProductIntro";
-import Admin from "./pages/Admin";
-import NotFound from "./pages/NotFound";
+import Admin from './pages/Admin';
+import NotFound from './pages/NotFound';
+import ProductIntro from './pages/ProductIntro';
+import FeedbackPage from './pages/FeedbackPage';
+import ScoringPage from './pages/ScoringPage';
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/feedback" element={<FeedbackPage />} />
+            <Route path="/scoring" element={<ScoringPage />} />
             <Route path="/intro" element={<ProductIntro />} />
             <Route path="/admin" element={<Admin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

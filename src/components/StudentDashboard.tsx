@@ -72,8 +72,6 @@ const StudentDashboard = () => {
   const [filterValue, setFilterValue] = useState('');
   const [filterField, setFilterField] = useState('name');
   
-  // 登分系统状态
-  const [showScoringSystem, setShowScoringSystem] = useState(false);
 
   // 学生空间状态
   const [selectedStudentForSpace, setSelectedStudentForSpace] = useState<Student | null>(null);
@@ -524,11 +522,6 @@ const StudentDashboard = () => {
     }
   };
 
-  // 如果显示登分系统，渲染登分系统组件
-  if (showScoringSystem) {
-    return <ScoringSystem students={students} onClose={() => setShowScoringSystem(false)} />;
-  }
-
   // 如果显示学生空间，渲染学生空间组件
   if (selectedStudentForSpace) {
     return (
@@ -571,7 +564,7 @@ const StudentDashboard = () => {
               {students.length} 名学生
             </Badge>
             <Button 
-              onClick={() => setShowScoringSystem(true)} 
+              onClick={() => navigate('/scoring')} 
               variant="outline"
               disabled={students.length === 0}
             >
