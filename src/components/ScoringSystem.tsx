@@ -2740,8 +2740,6 @@ const ResultsView = ({
           </CardContent>
         )}
       </Card>
-    </TabsContent>
-    </Tabs>
     </div>
   );
 };
