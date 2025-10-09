@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, Crown, Users, Trash2 } from 'lucide-react';
-import { MembershipTier } from '@/hooks/useUserRole';
+type MembershipTier = 'free' | 'premium' | 'enterprise';
 
 interface UserProfile {
   id: string;
@@ -214,20 +214,6 @@ export const AdminPanel = () => {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <Select
-                      value={user.membership_tier}
-                      onValueChange={(value) => updateMembershipTier(user.user_id, value as MembershipTier)}
-                    >
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="free">免费用户</SelectItem>
-                        <SelectItem value="premium">高级会员</SelectItem>
-                        <SelectItem value="enterprise">企业会员</SelectItem>
-                      </SelectContent>
-                    </Select>
-
                     <Button
                       variant={user.is_admin ? 'destructive' : 'default'}
                       size="sm"

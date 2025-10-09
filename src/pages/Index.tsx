@@ -9,7 +9,7 @@ import { Shield, Crown } from "lucide-react";
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
-  const { isAdmin, membershipTier } = useUserRole();
+  const { isAdmin } = useUserRole();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -53,17 +53,12 @@ const Index = () => {
                 <span className="text-sm text-foreground">
                   欢迎，{user.user_metadata?.full_name || user.email}
                 </span>
-                {isAdmin && (
-                  <Badge variant="destructive" className="flex items-center gap-1">
-                    <Crown className="h-3 w-3" />
-                    管理员
-                  </Badge>
-                )}
-                {membershipTier !== 'free' && (
-                  <Badge variant="secondary">
-                    {membershipTier === 'premium' ? '高级会员' : '企业会员'}
-                  </Badge>
-                )}
+              {isAdmin && (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <Crown className="h-3 w-3" />
+                  管理员
+                </Badge>
+              )}
               </div>
               <Button variant="ghost" size="sm" onClick={signOut}>
                 退出登录
