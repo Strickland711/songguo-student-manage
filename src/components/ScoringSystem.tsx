@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,7 +14,8 @@ import {
   BookOpen, 
   Users, 
   FileSpreadsheet, 
-  Settings, 
+  Settings,
+  Settings2, 
   Check, 
   X, 
   Play, 
@@ -113,7 +114,8 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
   // 历史记录详情筛选状态
   const [historyClassFilter, setHistoryClassFilter] = useState('all');
   const [historyNameFilter, setHistoryNameFilter] = useState('');
-  const [historyQuestionFilter, setHistoryQuestionFilter] = useState<{ [questionIndex: number]: 'all' | 'correct' | 'incorrect' }>({});
+  const [historyQuestionFilter, setHistoryQuestionFilter] = useState<{ [questionIndex: number]: 'correct' | 'incorrect' }>({});
+  const [questionFilterDialogOpen, setQuestionFilterDialogOpen] = useState(false);
   
   // 题目详情状态
   const [questionDetailView, setQuestionDetailView] = useState<{
@@ -1497,42 +1499,81 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
                         )}
                       </div>
 
-                      {/* 每道题筛选 */}
+                      {/* 按题目筛选按钮 */}
                       {(() => {
                         const exam = exams.find(e => e.id === examDetailView);
                         if (!exam) return null;
                         
+                        const filterCount = Object.keys(historyQuestionFilter).length;
+                        
                         return (
                           <div className="border-t pt-4">
-                            <Label className="text-sm mb-2 block">按题目答题情况筛选:</Label>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {Array.from({ length: exam.total_questions }, (_, i) => (
-                                <Select 
-                                  key={i}
-                                  value={historyQuestionFilter[i] || 'all'}
-                                  onValueChange={(value) => {
-                                    setHistoryQuestionFilter(prev => {
-                                      const newFilter = { ...prev };
-                                      if (value === 'all') {
-                                        delete newFilter[i];
-                                      } else {
-                                        newFilter[i] = value as 'correct' | 'incorrect';
-                                      }
-                                      return newFilter;
-                                    });
-                                  }}
-                                >
-                                  <SelectTrigger className="w-28">
-                                    <SelectValue placeholder={`第${i + 1}题`} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="all">第{i + 1}题:全部</SelectItem>
-                                    <SelectItem value="correct">第{i + 1}题:正确</SelectItem>
-                                    <SelectItem value="incorrect">第{i + 1}题:错误</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              ))}
-                            </div>
+                            <Dialog open={questionFilterDialogOpen} onOpenChange={setQuestionFilterDialogOpen}>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" className="w-full">
+                                  <Settings2 className="w-4 h-4 mr-2" />
+                                  按题目答题情况筛选
+                                  {filterCount > 0 && (
+                                    <Badge variant="secondary" className="ml-2">
+                                      已设置 {filterCount} 道题
+                                    </Badge>
+                                  )}
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                                <DialogHeader>
+                                  <DialogTitle>按题目答题情况筛选</DialogTitle>
+                                  <DialogDescription>
+                                    为每道题选择筛选条件，可以筛选出特定答题情况的学生
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid grid-cols-2 gap-4 py-4">
+                                  {Array.from({ length: exam.total_questions }, (_, i) => (
+                                    <div key={i} className="flex items-center gap-2">
+                                      <Label className="text-sm whitespace-nowrap min-w-[60px]">
+                                        第 {i + 1} 题:
+                                      </Label>
+                                      <Select 
+                                        value={historyQuestionFilter[i] || 'all'}
+                                        onValueChange={(value) => {
+                                          setHistoryQuestionFilter(prev => {
+                                            const newFilter = { ...prev };
+                                            if (value === 'all') {
+                                              delete newFilter[i];
+                                            } else {
+                                              newFilter[i] = value as 'correct' | 'incorrect';
+                                            }
+                                            return newFilter;
+                                          });
+                                        }}
+                                      >
+                                        <SelectTrigger className="flex-1">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="all">全部</SelectItem>
+                                          <SelectItem value="correct">正确</SelectItem>
+                                          <SelectItem value="incorrect">错误</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex justify-between items-center pt-4 border-t">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      setHistoryQuestionFilter({});
+                                    }}
+                                  >
+                                    清除所有条件
+                                  </Button>
+                                  <Button onClick={() => setQuestionFilterDialogOpen(false)}>
+                                    确定
+                                  </Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
                           </div>
                         );
                       })()}
