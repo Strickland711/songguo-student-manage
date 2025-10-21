@@ -110,6 +110,11 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
   const [showStudentDetails, setShowStudentDetails] = useState<{ [examId: string]: boolean }>({});
   const [examDetailView, setExamDetailView] = useState<string | null>(null);
   
+  // 历史记录详情筛选状态
+  const [historyClassFilter, setHistoryClassFilter] = useState('all');
+  const [historyNameFilter, setHistoryNameFilter] = useState('');
+  const [historyQuestionFilter, setHistoryQuestionFilter] = useState<{ [questionIndex: number]: 'all' | 'correct' | 'incorrect' }>({});
+  
   // 题目详情状态
   const [questionDetailView, setQuestionDetailView] = useState<{
     examId: string;
@@ -222,20 +227,21 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
   useEffect(() => {
     let filtered = students;
     
-    // 按班级筛选
+    // 按班级筛选 - 使用精确匹配或包含匹配
     if (classFilter.trim() && classFilter !== 'all') {
       filtered = filtered.filter(student => 
-        student.class.toLowerCase().includes(classFilter.toLowerCase())
+        student.class === classFilter || student.class.includes(classFilter)
       );
     }
     
-    // 按姓名筛选
-    if (nameFilter) {
+    // 按姓名筛选 - 同时支持拼音首字母和全名匹配
+    if (nameFilter.trim()) {
       const filterLetter = nameFilter.toUpperCase();
       filtered = filtered.filter(student => {
         const surname = student.name.charAt(0);
         const pinyinLetter = surnameMap[surname] || surname.toUpperCase();
-        return pinyinLetter === filterLetter || student.name.includes(nameFilter);
+        // 支持拼音首字母匹配或姓名包含匹配
+        return pinyinLetter === filterLetter || student.name.includes(nameFilter.trim());
       });
     }
     
@@ -1434,159 +1440,304 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
           <TabsContent value="history" className="space-y-6">
             {examDetailView ? (
               // 考试详情页面
-              <Card className="shadow-card">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Button
-                        onClick={() => setExamDetailView(null)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        ← 返回
-                      </Button>
-                      <div>
-                        <CardTitle>学生成绩详情</CardTitle>
-                        <CardDescription>
-                          {exams.find(e => e.id === examDetailView)?.name}
-                        </CardDescription>
+              <>
+                {/* 筛选栏 */}
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Filter className="w-5 h-5 text-accent" />
+                      筛选条件
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        {/* 班级筛选 */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm whitespace-nowrap">班级:</Label>
+                          <Select value={historyClassFilter} onValueChange={setHistoryClassFilter}>
+                            <SelectTrigger className="w-32">
+                              <SelectValue placeholder="全部班级" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">全部班级</SelectItem>
+                              {Array.from(new Set(students.map(s => s.class).filter(Boolean))).map(className => (
+                                <SelectItem key={className} value={className}>
+                                  {className}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* 姓名筛选 */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm whitespace-nowrap">姓名:</Label>
+                          <Input
+                            placeholder="搜索学生姓名..."
+                            value={historyNameFilter}
+                            onChange={(e) => setHistoryNameFilter(e.target.value)}
+                            className="w-40"
+                          />
+                        </div>
+
+                        {/* 重置按钮 */}
+                        {(historyClassFilter !== 'all' || historyNameFilter || Object.keys(historyQuestionFilter).length > 0) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setHistoryClassFilter('all');
+                              setHistoryNameFilter('');
+                              setHistoryQuestionFilter({});
+                            }}
+                          >
+                            重置筛选
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* 每道题筛选 */}
+                      {(() => {
+                        const exam = exams.find(e => e.id === examDetailView);
+                        if (!exam) return null;
+                        
+                        return (
+                          <div className="border-t pt-4">
+                            <Label className="text-sm mb-2 block">按题目答题情况筛选:</Label>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {Array.from({ length: exam.total_questions }, (_, i) => (
+                                <Select 
+                                  key={i}
+                                  value={historyQuestionFilter[i] || 'all'}
+                                  onValueChange={(value) => {
+                                    setHistoryQuestionFilter(prev => {
+                                      const newFilter = { ...prev };
+                                      if (value === 'all') {
+                                        delete newFilter[i];
+                                      } else {
+                                        newFilter[i] = value as 'correct' | 'incorrect';
+                                      }
+                                      return newFilter;
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger className="w-28">
+                                    <SelectValue placeholder={`第${i + 1}题`} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">第{i + 1}题:全部</SelectItem>
+                                    <SelectItem value="correct">第{i + 1}题:正确</SelectItem>
+                                    <SelectItem value="incorrect">第{i + 1}题:错误</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Button
+                          onClick={() => {
+                            setExamDetailView(null);
+                            setHistoryClassFilter('all');
+                            setHistoryNameFilter('');
+                            setHistoryQuestionFilter({});
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
+                          ← 返回
+                        </Button>
+                        <div>
+                          <CardTitle>学生成绩详情</CardTitle>
+                          <CardDescription>
+                            {exams.find(e => e.id === examDetailView)?.name}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => setShowErrorDistribution(examDetailView)}
+                          variant="outline"
+                          size="sm"
+                          className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:from-blue-100 hover:to-indigo-100"
+                        >
+                          <BarChart3 className="w-4 h-4 mr-2 text-blue-600" />
+                          错题分布
+                        </Button>
+                        <Button
+                          onClick={() => exportResults(examDetailView)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          导出Excel
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (examDetailView && confirm('确定要删除这次考试的所有数据吗？此操作无法撤销。')) {
+                              deleteExam(examDetailView);
+                              setExamDetailView(null);
+                            }
+                          }}
+                          variant="destructive"
+                          size="sm"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          删除考试
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={() => setShowErrorDistribution(examDetailView)}
-                        variant="outline"
-                        size="sm"
-                        className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:from-blue-100 hover:to-indigo-100"
-                      >
-                        <BarChart3 className="w-4 h-4 mr-2 text-blue-600" />
-                        错题分布
-                      </Button>
-                      <Button
-                        onClick={() => exportResults(examDetailView)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        导出Excel
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          if (examDetailView && confirm('确定要删除这次考试的所有数据吗？此操作无法撤销。')) {
-                            deleteExam(examDetailView);
-                            setExamDetailView(null);
-                          }
-                        }}
-                        variant="destructive"
-                        size="sm"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        删除考试
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {(() => {
-                    const exam = exams.find(e => e.id === examDetailView);
-                    const results = getExamResults(examDetailView);
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const exam = exams.find(e => e.id === examDetailView);
+                      let results = getExamResults(examDetailView);
+                      
+                      // 应用筛选条件
+                      results = results.filter(result => {
+                        const student = students.find(s => s.id === result.student_id);
+                        if (!student) return false;
+                        
+                        // 班级筛选
+                        if (historyClassFilter !== 'all' && student.class !== historyClassFilter) {
+                          return false;
+                        }
+                        
+                        // 姓名筛选
+                        if (historyNameFilter.trim() && !student.name.includes(historyNameFilter.trim())) {
+                          return false;
+                        }
+                        
+                        // 题目答题情况筛选
+                        for (const [questionIndex, filterValue] of Object.entries(historyQuestionFilter)) {
+                          const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === parseInt(questionIndex));
+                          if (filterValue === 'correct' && !answer?.isCorrect) return false;
+                          if (filterValue === 'incorrect' && answer?.isCorrect) return false;
+                        }
+                        
+                        return true;
+                      });
                     
-                    if (!exam || results.length === 0) {
-                      return (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <FileSpreadsheet className="w-12 h-12 mx-auto mb-2" />
-                          <p>该考试暂无成绩记录</p>
-                        </div>
-                      );
-                    }
+                      if (!exam) {
+                        return (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <FileSpreadsheet className="w-12 h-12 mx-auto mb-2" />
+                            <p>考试不存在</p>
+                          </div>
+                        );
+                      }
+                      
+                      if (results.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <FileSpreadsheet className="w-12 h-12 mx-auto mb-2" />
+                            <p>没有符合筛选条件的学生成绩</p>
+                          </div>
+                        );
+                      }
 
-                    return (
-                      <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                           <thead>
-                            <tr className="border-b-2 border-gray-200">
-                              <th className="text-center py-4 px-4 font-medium">排名</th>
-                              <th className="text-left py-4 px-4 font-medium">姓名</th>
-                              <th className="text-left py-4 px-4 font-medium">班级</th>
-                              <th className="text-center py-4 px-4 font-medium">总分</th>
-                              <th className="text-center py-4 px-4 font-medium">正确率</th>
-                               {Array.from({ length: exam.total_questions }, (_, i) => (
-                                 <th key={i} className="text-center py-4 px-2 font-medium min-w-[60px]">
-                                   <Button
-                                     variant="ghost"
-                                     className="text-sm font-medium hover:bg-blue-50 hover:text-blue-600 p-2 h-auto flex flex-col items-center gap-1"
-                                     onClick={() => setQuestionDetailView({ examId: exam.id!, questionIndex: i })}
-                                   >
-                                     <span>第{i + 1}题</span>
-                                     <span className="text-xs font-normal text-muted-foreground">
-                                       ({exam.scores[i]}分)
-                                     </span>
-                                   </Button>
-                                 </th>
-                               ))}
-                            </tr>
-                          </thead>
-                           <tbody>
-                            {results
-                              .sort((a, b) => b.total_score - a.total_score) // 按总分降序排列
-                              .map((result, index) => {
-                              const student = students.find(s => s.id === result.student_id);
-                              const totalPossible = exam.scores.reduce((sum, s) => sum + s, 0);
-                              const accuracyRate = ((result.correct_count / exam.total_questions) * 100).toFixed(1);
-                              const rank = index + 1; // 排名从1开始
-                              
-                              return (
-                                <tr key={result.id} className={`border-b ${index % 2 === 0 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                                  <td className="text-center py-4 px-4">
-                                    <Badge 
-                                      variant="secondary" 
-                                      className={`
-                                        ${rank === 1 ? 'bg-yellow-500 text-white' : 
-                                          rank === 2 ? 'bg-gray-400 text-white' : 
-                                          rank === 3 ? 'bg-amber-600 text-white' : 
-                                          'bg-gray-200 text-gray-700'}
-                                      `}
-                                    >
-                                      {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
-                                    </Badge>
-                                  </td>
-                                  <td className="py-4 px-4 font-medium">{student?.name}</td>
-                                  <td className="py-4 px-4 text-muted-foreground">{student?.class}</td>
-                                  <td className="text-center py-4 px-4">
-                                    <Badge variant="secondary" className="bg-gray-900 text-white hover:bg-gray-800">
-                                      {result.total_score}/{totalPossible}
-                                    </Badge>
-                                  </td>
-                                  <td className="text-center py-4 px-4">
-                                    <Badge variant="secondary" className="bg-gray-900 text-white hover:bg-gray-800">
-                                      {accuracyRate}%
-                                    </Badge>
-                                  </td>
-                                  {Array.from({ length: exam.total_questions }, (_, i) => {
-                                    const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === i);
-                                    const score = answer ? answer.score : 0;
+                      return (
+                        <div className="space-y-4">
+                          <div className="text-sm text-muted-foreground">
+                            显示 {results.length} 名学生的成绩
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full border-collapse">
+                              <thead>
+                                <tr className="border-b-2 border-gray-200">
+                                  <th className="text-center py-4 px-4 font-medium">排名</th>
+                                  <th className="text-left py-4 px-4 font-medium">姓名</th>
+                                  <th className="text-left py-4 px-4 font-medium">班级</th>
+                                  <th className="text-center py-4 px-4 font-medium">总分</th>
+                                  <th className="text-center py-4 px-4 font-medium">正确率</th>
+                                  {Array.from({ length: exam.total_questions }, (_, i) => (
+                                    <th key={i} className="text-center py-4 px-2 font-medium min-w-[60px]">
+                                      <Button
+                                        variant="ghost"
+                                        className="text-sm font-medium hover:bg-blue-50 hover:text-blue-600 p-2 h-auto flex flex-col items-center gap-1"
+                                        onClick={() => setQuestionDetailView({ examId: exam.id!, questionIndex: i })}
+                                      >
+                                        <span>第{i + 1}题</span>
+                                        <span className="text-xs font-normal text-muted-foreground">
+                                          ({exam.scores[i]}分)
+                                        </span>
+                                      </Button>
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {results
+                                  .sort((a, b) => b.total_score - a.total_score)
+                                  .map((result, index) => {
+                                    const student = students.find(s => s.id === result.student_id);
+                                    const totalPossible = exam.scores.reduce((sum, s) => sum + s, 0);
+                                    const accuracyRate = ((result.correct_count / exam.total_questions) * 100).toFixed(1);
+                                    const rank = index + 1;
+                                    
                                     return (
-                                      <td key={i} className="text-center py-4 px-2">
-                                        <div className="flex justify-center">
-                                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium ${
-                                            answer?.isCorrect ? 'bg-emerald-500' : 'bg-red-500'
-                                          }`}>
-                                            {score}
-                                          </div>
-                                        </div>
-                                      </td>
+                                      <tr key={result.id} className={`border-b ${index % 2 === 0 ? 'bg-gray-50/50' : 'bg-white'}`}>
+                                        <td className="text-center py-4 px-4">
+                                          <Badge 
+                                            variant="secondary" 
+                                            className={`
+                                              ${rank === 1 ? 'bg-yellow-500 text-white' : 
+                                                rank === 2 ? 'bg-gray-400 text-white' : 
+                                                rank === 3 ? 'bg-amber-600 text-white' : 
+                                                'bg-gray-200 text-gray-700'}
+                                            `}
+                                          >
+                                            {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
+                                          </Badge>
+                                        </td>
+                                        <td className="py-4 px-4 font-medium">{student?.name}</td>
+                                        <td className="py-4 px-4 text-muted-foreground">{student?.class}</td>
+                                        <td className="text-center py-4 px-4">
+                                          <Badge variant="secondary" className="bg-gray-900 text-white hover:bg-gray-800">
+                                            {result.total_score}/{totalPossible}
+                                          </Badge>
+                                        </td>
+                                        <td className="text-center py-4 px-4">
+                                          <Badge variant="secondary" className="bg-gray-900 text-white hover:bg-gray-800">
+                                            {accuracyRate}%
+                                          </Badge>
+                                        </td>
+                                        {Array.from({ length: exam.total_questions }, (_, i) => {
+                                          const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === i);
+                                          const score = answer ? answer.score : 0;
+                                          return (
+                                            <td key={i} className="text-center py-4 px-2">
+                                              <div className="flex justify-center">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium ${
+                                                  answer?.isCorrect ? 'bg-emerald-500' : 'bg-red-500'
+                                                }`}>
+                                                  {score}
+                                                </div>
+                                              </div>
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
                                     );
                                   })}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </>
             ) : (
               // 历史记录列表
               <>
@@ -2242,18 +2393,46 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
             
             {showErrorDistribution && (() => {
               const exam = exams.find(e => e.id === showErrorDistribution);
-              const results = getExamResults(showErrorDistribution);
+              // 使用筛选后的结果
+              let results = getExamResults(showErrorDistribution);
+              
+              // 如果在历史记录详情中打开错题分布，应用相同的筛选条件
+              if (examDetailView) {
+                results = results.filter(result => {
+                  const student = students.find(s => s.id === result.student_id);
+                  if (!student) return false;
+                  
+                  // 班级筛选
+                  if (historyClassFilter !== 'all' && student.class !== historyClassFilter) {
+                    return false;
+                  }
+                  
+                  // 姓名筛选
+                  if (historyNameFilter.trim() && !student.name.includes(historyNameFilter.trim())) {
+                    return false;
+                  }
+                  
+                  // 题目答题情况筛选
+                  for (const [questionIndex, filterValue] of Object.entries(historyQuestionFilter)) {
+                    const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === parseInt(questionIndex));
+                    if (filterValue === 'correct' && !answer?.isCorrect) return false;
+                    if (filterValue === 'incorrect' && answer?.isCorrect) return false;
+                  }
+                  
+                  return true;
+                });
+              }
               
               if (!exam || results.length === 0) {
                 return (
                   <div className="text-center py-8 text-muted-foreground">
                     <PieChart className="w-12 h-12 mx-auto mb-2" />
-                    <p>该考试暂无成绩记录</p>
+                    <p>没有符合筛选条件的成绩记录</p>
                   </div>
                 );
               }
               
-              // 计算每道题的正确率数据
+              // 计算每道题的正确率数据（基于筛选后的结果）
               const questionAnalysis = Array.from({ length: exam.total_questions }, (_, questionIndex) => {
                 const questionStats = results.map(result => {
                   const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === questionIndex);
@@ -2284,6 +2463,18 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
               
               return (
                 <div className="space-y-6">
+                  {/* 筛选提示 */}
+                  {examDetailView && (historyClassFilter !== 'all' || historyNameFilter || Object.keys(historyQuestionFilter).length > 0) && (
+                    <Card className="bg-blue-50 border-blue-200">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 text-sm text-blue-800">
+                          <Filter className="w-4 h-4" />
+                          <span>当前错题分布基于筛选后的 {results.length} 名学生计算</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                  
                   {/* 统计概览 */}
                   <div className="grid grid-cols-4 gap-4">
                     <Card>
@@ -2315,7 +2506,7 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
                         <div className="text-2xl font-bold text-purple-600">
                           {results.length}
                         </div>
-                        <div className="text-sm text-muted-foreground">参与人数</div>
+                        <div className="text-sm text-muted-foreground">统计人数</div>
                       </CardContent>
                     </Card>
                   </div>
@@ -2490,18 +2681,18 @@ const ResultsView = ({
     return result;
   };
 
-  // 筛选学生
+  // 筛选学生 - 使用精确匹配或包含匹配
   const filteredStudents = students.filter(student => {
     let matches = true;
     
-    // 按班级筛选
+    // 按班级筛选 - 使用精确匹配或包含匹配
     if (classFilter.trim() && classFilter !== 'all') {
-      matches = matches && student.class.toLowerCase().includes(classFilter.toLowerCase());
+      matches = matches && (student.class === classFilter || student.class.includes(classFilter));
     }
     
-    // 按姓名筛选
+    // 按姓名筛选 - 使用包含匹配
     if (nameFilter.trim()) {
-      matches = matches && student.name.toLowerCase().includes(nameFilter.toLowerCase());
+      matches = matches && student.name.includes(nameFilter.trim());
     }
     
     return matches;
