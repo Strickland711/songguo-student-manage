@@ -117,6 +117,14 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
   const [historyQuestionFilter, setHistoryQuestionFilter] = useState<{ [questionIndex: number]: 'correct' | 'incorrect' }>({});
   const [questionFilterDialogOpen, setQuestionFilterDialogOpen] = useState(false);
   
+  // 模板导出相关状态
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [templateData, setTemplateData] = useState<any[]>([]);
+  const [templateColumns, setTemplateColumns] = useState<string[]>([]);
+  const [selectedNameColumn, setSelectedNameColumn] = useState<string>('');
+  const [templateExamId, setTemplateExamId] = useState<string | null>(null);
+  
   // 题目详情状态
   const [questionDetailView, setQuestionDetailView] = useState<{
     examId: string;
@@ -615,6 +623,150 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
     toast({
       title: "导出成功",
       description: "考试成绩已导出到Excel文件",
+    });
+  };
+
+  // 上传模板文件
+  const handleTemplateUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setTemplateFile(file);
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        if (jsonData.length === 0) {
+          toast({
+            title: "文件无效",
+            description: "上传的Excel文件没有数据",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setTemplateData(jsonData);
+        const columns = Object.keys(jsonData[0]);
+        setTemplateColumns(columns);
+        
+        // 尝试自动检测姓名列
+        const nameColumn = columns.find(col => 
+          col.includes('姓名') || col.includes('名字') || col.includes('name') || col.toLowerCase() === 'name'
+        );
+        if (nameColumn) {
+          setSelectedNameColumn(nameColumn);
+        }
+
+        toast({
+          title: "模板上传成功",
+          description: `已读取 ${jsonData.length} 行数据，请选择姓名列`,
+        });
+      } catch (error) {
+        toast({
+          title: "读取失败",
+          description: "无法读取Excel文件，请确保文件格式正确",
+          variant: "destructive",
+        });
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
+  // 按模板顺序导出成绩
+  const exportWithTemplate = () => {
+    if (!templateExamId || !selectedNameColumn || templateData.length === 0) {
+      toast({
+        title: "配置不完整",
+        description: "请上传模板并选择姓名列",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exam = exams.find(e => e.id === templateExamId);
+    if (!exam) return;
+
+    const examData = examResults.filter(r => r.exam_id === templateExamId);
+    
+    // 按照模板中的姓名顺序导出
+    const exportData = templateData.map(row => {
+      const templateName = row[selectedNameColumn]?.toString().trim();
+      if (!templateName) return null;
+
+      // 在学生列表中查找匹配的学生
+      const student = students.find(s => s.name === templateName);
+      if (!student) {
+        // 学生不存在，返回空成绩
+        const data: any = {
+          '姓名': templateName,
+          '班级': '',
+          '总分': '',
+          '正确题数': '',
+          '正确率': '',
+        };
+        for (let i = 0; i < exam.total_questions; i++) {
+          data[`第${i + 1}题`] = '';
+        }
+        return data;
+      }
+
+      // 查找该学生的成绩
+      const result = examData.find(r => r.student_id === student.id);
+      if (!result) {
+        // 学生存在但没有成绩
+        const data: any = {
+          '姓名': student.name,
+          '班级': student.class || '',
+          '总分': '',
+          '正确题数': '',
+          '正确率': '',
+        };
+        for (let i = 0; i < exam.total_questions; i++) {
+          data[`第${i + 1}题`] = '';
+        }
+        return data;
+      }
+
+      // 学生存在且有成绩
+      const data: any = {
+        '姓名': student.name,
+        '班级': student.class || '',
+        '总分': result.total_score,
+        '正确题数': result.correct_count,
+        '正确率': `${((result.correct_count / exam.total_questions) * 100).toFixed(1)}%`,
+      };
+
+      for (let i = 0; i < exam.total_questions; i++) {
+        const answer = result.answers.find((a: StudentAnswer) => a.questionIndex === i);
+        data[`第${i + 1}题`] = answer ? answer.score : 0;
+      }
+
+      return data;
+    }).filter(Boolean);
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "考试成绩");
+    XLSX.writeFile(workbook, `${exam.name}_按模板导出_${new Date().toLocaleDateString()}.xlsx`);
+    
+    // 重置状态
+    setShowTemplateDialog(false);
+    setTemplateFile(null);
+    setTemplateData([]);
+    setTemplateColumns([]);
+    setSelectedNameColumn('');
+    setTemplateExamId(null);
+    
+    toast({
+      title: "导出成功",
+      description: `已按模板顺序导出 ${exportData.length} 条成绩记录`,
     });
   };
 
@@ -1621,6 +1773,18 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
                         >
                           <Download className="w-4 h-4 mr-2" />
                           导出Excel
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setTemplateExamId(examDetailView);
+                            setShowTemplateDialog(true);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:from-green-100 hover:to-emerald-100"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
+                          按模板导出
                         </Button>
                         <Button
                           onClick={() => {
@@ -2972,6 +3136,103 @@ const ResultsView = ({
           </CardContent>
         )}
       </Card>
+
+      {/* 模板导出对话框 */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>按模板导出成绩</DialogTitle>
+            <DialogDescription>
+              上传包含学生姓名的Excel模板，系统将按模板中的姓名顺序导出成绩
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* 上传模板 */}
+            <div className="space-y-2">
+              <Label>上传Excel模板</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleTemplateUpload}
+                  className="flex-1"
+                />
+                {templateFile && (
+                  <Badge variant="secondary">
+                    已上传: {templateFile.name}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                请上传包含学生姓名列的Excel文件
+              </p>
+            </div>
+
+            {/* 选择姓名列 */}
+            {templateColumns.length > 0 && (
+              <div className="space-y-2">
+                <Label>选择姓名列</Label>
+                <Select value={selectedNameColumn} onValueChange={setSelectedNameColumn}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="请选择包含学生姓名的列" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templateColumns.map(col => (
+                      <SelectItem key={col} value={col}>
+                        {col}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  已读取 {templateData.length} 行数据
+                </p>
+              </div>
+            )}
+
+            {/* 预览 */}
+            {selectedNameColumn && templateData.length > 0 && (
+              <div className="space-y-2">
+                <Label>姓名预览（前5条）</Label>
+                <div className="border rounded-lg p-3 bg-muted/50 space-y-1">
+                  {templateData.slice(0, 5).map((row, idx) => (
+                    <div key={idx} className="text-sm">
+                      {idx + 1}. {row[selectedNameColumn]}
+                    </div>
+                  ))}
+                  {templateData.length > 5 && (
+                    <div className="text-sm text-muted-foreground">
+                      ... 还有 {templateData.length - 5} 条
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowTemplateDialog(false);
+                setTemplateFile(null);
+                setTemplateData([]);
+                setTemplateColumns([]);
+                setSelectedNameColumn('');
+                setTemplateExamId(null);
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={exportWithTemplate}
+              disabled={!selectedNameColumn || templateData.length === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              导出成绩
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
