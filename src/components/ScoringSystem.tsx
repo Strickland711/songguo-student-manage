@@ -2849,6 +2849,96 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
             })()}
           </DialogContent>
         </Dialog>
+
+        {/* 模板导出对话框 */}
+        <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>按模板导出成绩</DialogTitle>
+              <DialogDescription>
+                上传包含学生姓名的Excel模板，系统将按模板中的姓名顺序导出成绩
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>上传Excel模板</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleTemplateUpload}
+                    className="flex-1"
+                  />
+                  {templateFile && (
+                    <Badge variant="secondary">已上传: {templateFile.name}</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  请上传包含学生姓名列的Excel文件
+                </p>
+              </div>
+
+              {templateColumns.length > 0 && (
+                <div className="space-y-2">
+                  <Label>选择姓名列</Label>
+                  <Select value={selectedNameColumn} onValueChange={setSelectedNameColumn}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="请选择包含学生姓名的列" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templateColumns.map(col => (
+                        <SelectItem key={col} value={col}>{col}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    已读取 {templateData.length} 行数据
+                  </p>
+                </div>
+              )}
+
+              {selectedNameColumn && templateData.length > 0 && (
+                <div className="space-y-2">
+                  <Label>姓名预览（前5条）</Label>
+                  <div className="border rounded-lg p-3 bg-muted/50 space-y-1">
+                    {templateData.slice(0, 5).map((row, idx) => (
+                      <div key={idx} className="text-sm">
+                        {idx + 1}. {row[selectedNameColumn]}
+                      </div>
+                    ))}
+                    {templateData.length > 5 && (
+                      <div className="text-sm text-muted-foreground">
+                        ... 还有 {templateData.length - 5} 条
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTemplateDialog(false);
+                  setTemplateFile(null);
+                  setTemplateData([]);
+                  setTemplateColumns([]);
+                  setSelectedNameColumn('');
+                  setTemplateExamId(null);
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={exportWithTemplate}
+                disabled={!selectedNameColumn || templateData.length === 0}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                导出成绩
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   };
@@ -3136,103 +3226,6 @@ const ResultsView = ({
           </CardContent>
         )}
       </Card>
-
-      {/* 模板导出对话框 */}
-      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>按模板导出成绩</DialogTitle>
-            <DialogDescription>
-              上传包含学生姓名的Excel模板，系统将按模板中的姓名顺序导出成绩
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* 上传模板 */}
-            <div className="space-y-2">
-              <Label>上传Excel模板</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleTemplateUpload}
-                  className="flex-1"
-                />
-                {templateFile && (
-                  <Badge variant="secondary">
-                    已上传: {templateFile.name}
-                  </Badge>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                请上传包含学生姓名列的Excel文件
-              </p>
-            </div>
-
-            {/* 选择姓名列 */}
-            {templateColumns.length > 0 && (
-              <div className="space-y-2">
-                <Label>选择姓名列</Label>
-                <Select value={selectedNameColumn} onValueChange={setSelectedNameColumn}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="请选择包含学生姓名的列" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templateColumns.map(col => (
-                      <SelectItem key={col} value={col}>
-                        {col}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  已读取 {templateData.length} 行数据
-                </p>
-              </div>
-            )}
-
-            {/* 预览 */}
-            {selectedNameColumn && templateData.length > 0 && (
-              <div className="space-y-2">
-                <Label>姓名预览（前5条）</Label>
-                <div className="border rounded-lg p-3 bg-muted/50 space-y-1">
-                  {templateData.slice(0, 5).map((row, idx) => (
-                    <div key={idx} className="text-sm">
-                      {idx + 1}. {row[selectedNameColumn]}
-                    </div>
-                  ))}
-                  {templateData.length > 5 && (
-                    <div className="text-sm text-muted-foreground">
-                      ... 还有 {templateData.length - 5} 条
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowTemplateDialog(false);
-                setTemplateFile(null);
-                setTemplateData([]);
-                setTemplateColumns([]);
-                setSelectedNameColumn('');
-                setTemplateExamId(null);
-              }}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={exportWithTemplate}
-              disabled={!selectedNameColumn || templateData.length === 0}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              导出成绩
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
