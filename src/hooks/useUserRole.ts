@@ -16,15 +16,14 @@ export const useUserRole = () => {
 
     const fetchUserRole = async () => {
       try {
-        // Check if user is admin
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('role', 'admin')
-          .maybeSingle();
-
-        setIsAdmin(!!roleData);
+        // 使用安全的 RPC 函数检查是否为管理员，避免 RLS 限制
+        const { data, error } = await supabase.rpc('is_admin', { _user_id: user.id });
+        if (error) {
+          console.error('Error checking admin role via RPC:', error);
+          setIsAdmin(false);
+        } else {
+          setIsAdmin(!!data);
+        }
       } catch (error) {
         console.error('Error fetching user role:', error);
       } finally {
