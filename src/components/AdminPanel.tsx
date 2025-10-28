@@ -5,15 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Crown, Users, Trash2 } from 'lucide-react';
-type MembershipTier = 'free' | 'premium' | 'enterprise';
+import { Shield, Crown, Trash2 } from 'lucide-react';
 
 interface UserProfile {
   id: string;
   user_id: string;
   full_name: string | null;
   username: string | null;
-  membership_tier: MembershipTier;
   created_at: string;
 }
 
@@ -84,30 +82,6 @@ export const AdminPanel = () => {
     }
   };
 
-  const updateMembershipTier = async (userId: string, tier: MembershipTier) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ membership_tier: tier })
-        .eq('user_id', userId);
-
-      if (error) throw error;
-
-      toast({
-        title: '成功',
-        description: '会员等级已更新',
-      });
-
-      fetchUsers();
-    } catch (error) {
-      console.error('Error updating membership:', error);
-      toast({
-        title: '错误',
-        description: '更新会员等级失败',
-        variant: 'destructive',
-      });
-    }
-  };
 
   const toggleAdminRole = async (userId: string, isCurrentlyAdmin: boolean) => {
     try {
@@ -169,16 +143,6 @@ export const AdminPanel = () => {
     }
   };
 
-  const getMembershipBadge = (tier: MembershipTier) => {
-    const variants = {
-      free: { label: '免费用户', className: 'bg-gray-500' },
-      premium: { label: '高级会员', className: 'bg-blue-500' },
-      enterprise: { label: '企业会员', className: 'bg-purple-500' },
-    };
-    
-    const config = variants[tier];
-    return <Badge className={config.className}>{config.label}</Badge>;
-  };
 
   if (loading) {
     return <div className="flex items-center justify-center p-8">加载中...</div>;
@@ -192,7 +156,7 @@ export const AdminPanel = () => {
             <Shield className="h-6 w-6 text-primary" />
             <CardTitle>用户管理</CardTitle>
           </div>
-          <CardDescription>管理所有用户的权限和会员等级</CardDescription>
+          <CardDescription>管理所有用户的管理员权限</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -208,7 +172,6 @@ export const AdminPanel = () => {
                           管理员
                         </Badge>
                       )}
-                      {getMembershipBadge(user.membership_tier)}
                     </div>
                     <p className="text-sm text-muted-foreground">{user.email}</p>
                   </div>
