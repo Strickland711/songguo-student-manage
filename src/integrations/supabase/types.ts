@@ -302,7 +302,6 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
-          membership_tier: Database["public"]["Enums"]["membership_tier"]
           updated_at: string
           user_id: string
           username: string | null
@@ -312,7 +311,6 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
-          membership_tier?: Database["public"]["Enums"]["membership_tier"]
           updated_at?: string
           user_id: string
           username?: string | null
@@ -322,7 +320,6 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
-          membership_tier?: Database["public"]["Enums"]["membership_tier"]
           updated_at?: string
           user_id?: string
           username?: string | null
@@ -526,10 +523,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_admin: {
-        Args: { _user_id: string }
-        Returns: boolean
-      }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
       merge_tags: {
         Args: {
           keep_target_data?: boolean
@@ -541,7 +535,6 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
-      membership_tier: "free" | "premium" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -670,7 +663,6 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
-      membership_tier: ["free", "premium", "enterprise"],
     },
   },
 } as const
