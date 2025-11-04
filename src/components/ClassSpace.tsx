@@ -18,8 +18,16 @@ import {
   DragOverEvent,
   DragOverlay,
 } from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ClassData {
+  id: string;
   name: string;
   students: Student[];
   expanded: boolean;
@@ -80,10 +88,23 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName, onStudentD
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(classData.name);
 
-  const { isOver, setNodeRef } = useDroppable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortableRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: classData.id });
+
+  const sortableStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const { isOver, setNodeRef: setDroppableRef } = useDroppable({
     id: classData.name,
   });
-
   const handleSaveEdit = () => {
     if (editName.trim() && editName !== classData.name) {
       onEditClassName(classData.name, editName.trim());
@@ -99,25 +120,46 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName, onStudentD
 
   return (
     <div 
-      ref={setNodeRef}
-      className={`${isOver ? 'ring-2 ring-primary/50 bg-primary/5 rounded-lg' : ''}`}
+      ref={setSortableRef}
+      style={sortableStyle}
+      className={`${isDragging ? 'opacity-50' : ''}`}
     >
-      <Card className="shadow-card transition-colors">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onToggleExpand(classData.name)}
-                className="p-1 h-6 w-6"
-              >
-                {classData.expanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </Button>
+      <div
+        ref={setDroppableRef}
+        className={`${isOver ? 'ring-2 ring-primary/50 bg-primary/5 rounded-lg' : ''}`}
+      >
+        <Card className="shadow-card transition-colors">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  {...attributes}
+                  {...listeners}
+                  className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+                  title="拖拽排序"
+                >
+                  <svg className="w-4 h-4 text-muted-foreground" viewBox="0 0 16 16" fill="currentColor">
+                    <circle cx="4" cy="4" r="1.5"/>
+                    <circle cx="4" cy="8" r="1.5"/>
+                    <circle cx="4" cy="12" r="1.5"/>
+                    <circle cx="12" cy="4" r="1.5"/>
+                    <circle cx="12" cy="8" r="1.5"/>
+                    <circle cx="12" cy="12" r="1.5"/>
+                  </svg>
+                </div>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onToggleExpand(classData.name)}
+                  className="p-1 h-6 w-6"
+                >
+                  {classData.expanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </Button>
               
               {isEditing ? (
                 <div className="flex items-center gap-2">
@@ -185,7 +227,8 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName, onStudentD
             </div>
           </CardContent>
         )}
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 };
@@ -205,7 +248,8 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
       classMap.get(className)!.push(student);
     });
     
-    return Array.from(classMap.entries()).map(([name, students]) => ({
+    return Array.from(classMap.entries()).map(([name, students], index) => ({
+      id: `class-${index}-${name}`,
       name,
       students,
       expanded: true,
@@ -229,6 +273,7 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
     const newClassDataList = Array.from(classMap.entries()).map(([name, studentsInClass]) => {
       const existingClass = classDataList.find(c => c.name === name);
       return {
+        id: existingClass?.id || `class-${Date.now()}-${name}`,
         name,
         students: studentsInClass,
         expanded: existingClass ? existingClass.expanded : true,
@@ -237,12 +282,14 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
     
     // 更精确的变化检测（避免不必要的重新渲染）
     const currentSnapshot = classDataList.map(c => ({ 
+      id: c.id,
       name: c.name, 
       studentIds: c.students.map(s => s.id).sort(),
       expanded: c.expanded
     }));
     
     const newSnapshot = newClassDataList.map(c => ({ 
+      id: c.id,
       name: c.name, 
       studentIds: c.students.map(s => s.id).sort(),
       expanded: c.expanded
@@ -300,8 +347,28 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
     
     if (!over) return;
     
-    const draggedStudentId = active.id as string;
-    const targetClassName = over.id as string;
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    
+    // 判断是拖拽班级还是学生
+    if (activeId.startsWith('class-') && overId.startsWith('class-')) {
+      // 拖拽班级排序
+      const oldIndex = classDataList.findIndex(c => c.id === activeId);
+      const newIndex = classDataList.findIndex(c => c.id === overId);
+      
+      if (oldIndex !== newIndex) {
+        setClassDataList(arrayMove(classDataList, oldIndex, newIndex));
+        toast({
+          title: "排序成功",
+          description: "班级顺序已更新",
+        });
+      }
+      return;
+    }
+    
+    // 拖拽学生到班级
+    const draggedStudentId = activeId;
+    const targetClassName = overId;
     
     // 找到被拖拽的学生和源班级
     let draggedStudent: Student | null = null;
@@ -427,18 +494,22 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
       >
-        <div className="grid gap-4">
-          {classDataList.map(classData => (
-            <div key={classData.name}>
+        <SortableContext
+          items={classDataList.map(c => c.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="grid gap-4">
+            {classDataList.map(classData => (
               <DroppableClass
+                key={classData.id}
                 classData={classData}
                 onToggleExpand={toggleClassExpansion}
                 onEditClassName={editClassName}
                 onStudentDoubleClick={onStudentDoubleClick}
               />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </SortableContext>
       </DndContext>
 
       <DragOverlay>
@@ -454,6 +525,7 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
       <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
         <h4 className="font-medium mb-2">使用说明：</h4>
         <ul className="space-y-1 text-xs">
+          <li>• 点击班级左侧的拖拽手柄可以调整班级显示顺序</li>
           <li>• 点击班级名称旁的编辑按钮可以修改班级名称</li>
           <li>• 点击箭头可以展开/收起班级查看学生列表</li>
           <li>• 拖拽学生卡片到其他班级可以移动学生</li>

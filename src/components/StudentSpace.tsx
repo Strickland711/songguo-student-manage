@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +38,7 @@ interface CustomFieldValue {
   value: string;
 }
 
-const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
+const StudentSpace = memo(({ student, onClose }: StudentSpaceProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [examResults, setExamResults] = useState<ExamResult[]>([]);
@@ -50,111 +50,141 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
   const { feedbackRecords, getFeedbackByStudent } = useFeedbackData();
 
   // Load student data with error handling and refresh capability
-  useEffect(() => {
+  const loadStudentData = useCallback(async () => {
     if (!user || !student.id) return;
-    
-    const loadStudentData = async () => {
-      try {
-        setLoading(true);
-        // Load exam results
-        const { data: examData, error: examError } = await supabase
-          .from('exam_results')
-          .select(`
-            id,
-            total_score,
-            correct_count,
-            created_at,
-            exams!inner(name, total_questions)
-          `)
-          .eq('user_id', user.id)
-          .eq('student_id', student.id)
-          .order('created_at', { ascending: false });
+    try {
+      setLoading(true);
+      // Load exam results
+      const { data: examData, error: examError } = await supabase
+        .from('exam_results')
+        .select(`
+          id,
+          total_score,
+          correct_count,
+          created_at,
+          exams!inner(name, total_questions)
+        `)
+        .eq('user_id', user.id)
+        .eq('student_id', student.id)
+        .order('created_at', { ascending: false });
 
-        if (examError) throw examError;
+      if (examError) throw examError;
 
-        const formattedExamResults = (examData || []).map(exam => ({
-          id: exam.id,
-          exam_name: exam.exams?.name || '未知考试',
-          total_score: exam.total_score,
-          correct_count: exam.correct_count,
-          total_questions: exam.exams?.total_questions || 0,
-          created_at: exam.created_at
-        }));
+      const formattedExamResults = (examData || []).map(exam => ({
+        id: exam.id,
+        exam_name: exam.exams?.name || '未知考试',
+        total_score: exam.total_score,
+        correct_count: exam.correct_count,
+        total_questions: exam.exams?.total_questions || 0,
+        created_at: exam.created_at
+      }));
 
-        setExamResults(formattedExamResults);
+      setExamResults(formattedExamResults);
 
-        // Load scoring records
-        const { data: scoringData, error: scoringError } = await supabase
-          .from('scoring_records')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('student_id', student.id)
-          .order('created_at', { ascending: false });
+      // Load scoring records
+      const { data: scoringData, error: scoringError } = await supabase
+        .from('scoring_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('student_id', student.id)
+        .order('created_at', { ascending: false });
 
-        if (scoringError) throw scoringError;
-        setScoringRecords(scoringData || []);
+      if (scoringError) throw scoringError;
+      setScoringRecords(scoringData || []);
 
-        // Load student tags
-        const { data: tagsData, error: tagsError } = await supabase
-          .from('student_tags')
-          .select('tag_id')
-          .eq('student_id', student.id);
+      // Load student tags
+      const { data: tagsData, error: tagsError } = await supabase
+        .from('student_tags')
+        .select('tag_id')
+        .eq('student_id', student.id);
 
-        if (tagsError) throw tagsError;
+      if (tagsError) throw tagsError;
+      
+      if (tagsData && tagsData.length > 0) {
+        const tagIds = tagsData.map(item => item.tag_id);
         
-        if (tagsData && tagsData.length > 0) {
-          const tagIds = tagsData.map(item => item.tag_id);
+        const { data: tagDetails, error: tagDetailsError } = await supabase
+          .from('tags')
+          .select('id, name, color, description')
+          .in('id', tagIds)
+          .eq('user_id', user.id);
           
-          const { data: tagDetails, error: tagDetailsError } = await supabase
-            .from('tags')
-            .select('id, name, color, description')
-            .in('id', tagIds)
-            .eq('user_id', user.id);
-            
-          if (tagDetailsError) throw tagDetailsError;
-          setStudentTags(tagDetails || []);
-        } else {
-          setStudentTags([]);
-        }
-
-        // Load custom field values
-        const { data: fieldValuesData, error: fieldValuesError } = await supabase
-          .from('student_field_values')
-          .select(`
-            id,
-            value,
-            custom_fields!inner(
-              name,
-              type
-            )
-          `)
-          .eq('student_id', student.id);
-
-        if (fieldValuesError) throw fieldValuesError;
-        
-        const formattedFieldValues = (fieldValuesData || []).map(item => ({
-          id: item.id,
-          field_name: item.custom_fields.name,
-          field_type: item.custom_fields.type,
-          value: item.value || ''
-        }));
-        
-        setCustomFieldValues(formattedFieldValues);
-
-        setLoading(false);
-      } catch (error: any) {
-        console.error('Error loading student data:', error);
-        toast({
-          title: "加载失败",
-          description: "无法加载学生数据",
-          variant: "destructive",
-        });
-        setLoading(false);
+        if (tagDetailsError) throw tagDetailsError;
+        setStudentTags(tagDetails || []);
+      } else {
+        setStudentTags([]);
       }
-    };
 
+      // Load custom field values
+      const { data: fieldValuesData, error: fieldValuesError } = await supabase
+        .from('student_field_values')
+        .select(`
+          id,
+          value,
+          custom_fields!inner(
+            name,
+            type
+          )
+        `)
+        .eq('student_id', student.id);
+
+      if (fieldValuesError) throw fieldValuesError;
+      
+      const formattedFieldValues = (fieldValuesData || []).map(item => ({
+        id: item.id,
+        field_name: item.custom_fields.name,
+        field_type: item.custom_fields.type,
+        value: item.value || ''
+      }));
+      
+      setCustomFieldValues(formattedFieldValues);
+
+      setLoading(false);
+    } catch (error: any) {
+      console.error('Error loading student data:', error);
+      toast({
+        title: "加载失败",
+        description: "无法加载学生数据",
+        variant: "destructive",
+      });
+      setLoading(false);
+    }
+  }, [user, student.id, toast]);
+
+  useEffect(() => {
     loadStudentData();
-  }, [user, student.id]);
+  }, [loadStudentData]);
+
+  const studentFeedback = useMemo(() => getFeedbackByStudent(student.id || ''), [getFeedbackByStudent, student.id]);
+  
+  const averageScore = useMemo(() => {
+    return examResults.length > 0 
+      ? examResults.reduce((sum, exam) => sum + exam.total_score, 0) / examResults.length 
+      : 0;
+  }, [examResults]);
+  
+  const averageCorrectRate = useMemo(() => {
+    return examResults.length > 0
+      ? examResults.reduce((sum, exam) => sum + (exam.correct_count / exam.total_questions), 0) / examResults.length * 100
+      : 0;
+  }, [examResults]);
+
+  const getScoreColor = useCallback((score: number) => {
+    if (score >= 90) return 'text-green-600';
+    if (score >= 80) return 'text-blue-600';
+    if (score >= 70) return 'text-yellow-600';
+    if (score >= 60) return 'text-orange-600';
+    return 'text-red-600';
+  }, []);
+
+  const getMoodColor = useCallback((mood: string) => {
+    switch (mood) {
+      case 'happy': return 'bg-green-100 text-green-700 border-green-200';
+      case 'neutral': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'sad': return 'bg-red-100 text-red-700 border-red-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -171,54 +201,7 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
     );
   }
 
-  const studentFeedback = getFeedbackByStudent(student.id || '');
-  const averageScore = examResults.length > 0 
-    ? examResults.reduce((sum, exam) => sum + exam.total_score, 0) / examResults.length 
-    : 0;
-  const averageCorrectRate = examResults.length > 0
-    ? examResults.reduce((sum, exam) => sum + (exam.correct_count / exam.total_questions), 0) / examResults.length * 100
-    : 0;
-
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-blue-600';
-    if (score >= 70) return 'text-yellow-600';
-    if (score >= 60) return 'text-orange-600';
-    return 'text-red-600';
-  };
-
-  const getMoodColor = (mood: string) => {
-    switch (mood) {
-      case 'happy': return 'bg-green-100 text-green-700 border-green-200';
-      case 'neutral': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'sad': return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-7xl h-[95vh] flex flex-col">
-        <CardHeader className="flex-shrink-0 border-b bg-gradient-to-r from-primary/5 to-accent/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
-                <User className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-3xl font-bold">{student.name}</CardTitle>
-                <p className="text-lg text-muted-foreground flex items-center gap-2">
-                  <BookOpen className="w-4 h-4" />
-                  班级: {student.class}
-                </p>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" onClick={onClose} className="hover:bg-destructive/10">
-              <X className="w-5 h-5" />
-            </Button>
-          </div>
-        </CardHeader>
-
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-7xl h-[95vh] flex flex-col">
         <CardHeader className="flex-shrink-0 border-b bg-gradient-to-r from-primary/5 to-accent/5">
@@ -495,9 +478,9 @@ const StudentSpace = ({ student, onClose }: StudentSpaceProps) => {
         </div>
       </Card>
     </div>
-      </Card>
-    </div>
   );
-};
+});
+
+StudentSpace.displayName = 'StudentSpace';
 
 export default StudentSpace;
