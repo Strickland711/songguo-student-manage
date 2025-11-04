@@ -215,13 +215,13 @@ const StudentDashboard = () => {
         return student;
       });
 
-      // 检测重复学生（同名同姓）
+      // 检测重复学生（同名学员）
       const duplicates: Student[] = [];
       const uniqueStudents: Student[] = [];
 
       newStudents.forEach(newStudent => {
         const existingStudent = students.find(s => 
-          s.name === newStudent.name && s.class === newStudent.class
+          s.name === newStudent.name
         );
         
         if (existingStudent) {
@@ -264,10 +264,10 @@ const StudentDashboard = () => {
   const handleDuplicateChoice = async (overwrite: boolean) => {
     try {
       if (overwrite) {
-        // 覆盖重复学生信息
+        // 覆盖重复学生信息（按姓名匹配）
         const updatedStudents = students.map(existingStudent => {
           const duplicate = duplicateStudents.find(d => 
-            d.name === existingStudent.name && d.class === existingStudent.class
+            d.name === existingStudent.name
           );
           return duplicate ? { ...duplicate, id: existingStudent.id } : existingStudent;
         });
@@ -1270,7 +1270,7 @@ const StudentDashboard = () => {
             <CardHeader>
               <CardTitle>发现重复学生</CardTitle>
               <CardDescription>
-                发现 {duplicateStudents.length} 名重复学生（同名同班级），请选择处理方式
+                发现 {duplicateStudents.length} 名同名学生，请选择处理方式
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1278,8 +1278,8 @@ const StudentDashboard = () => {
                 <h4 className="font-medium mb-2">重复学生列表：</h4>
                 {duplicateStudents.map((student, index) => (
                   <div key={index} className="flex justify-between py-1 text-sm">
-                    <span>{student.name}</span>
-                    <span className="text-muted-foreground">{student.class}</span>
+                    <span className="font-medium">{student.name}</span>
+                    <span className="text-muted-foreground">{student.class || '无班级'}</span>
                   </div>
                 ))}
               </div>
