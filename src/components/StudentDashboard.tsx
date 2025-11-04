@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare, Download } from 'lucide-react';
+import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare, Download, GitMerge } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
@@ -65,6 +65,12 @@ const StudentDashboard = () => {
   const [duplicateStudents, setDuplicateStudents] = useState<Student[]>([]);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
+  
+  // 现有学生重复检测和合并状态
+  const [duplicateGroups, setDuplicateGroups] = useState<Student[][]>([]);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [currentMergeGroup, setCurrentMergeGroup] = useState<Student[]>([]);
+  const [selectedPrimaryStudent, setSelectedPrimaryStudent] = useState<Student | null>(null);
   
   // 学生显示和筛选状态
   const [visibleFields, setVisibleFields] = useState<string[]>(['name', 'class']);
@@ -480,6 +486,112 @@ const StudentDashboard = () => {
     }
   };
 
+  // 检测现有学生中的重复项
+  const detectDuplicates = () => {
+    const nameGroups: { [name: string]: Student[] } = {};
+    
+    // 按姓名分组
+    students.forEach(student => {
+      const name = student.name.trim();
+      if (!nameGroups[name]) {
+        nameGroups[name] = [];
+      }
+      nameGroups[name].push(student);
+    });
+    
+    // 找出重复的组（同名学员超过1个）
+    const duplicates = Object.values(nameGroups).filter(group => group.length > 1);
+    
+    if (duplicates.length === 0) {
+      toast({
+        title: "未发现重复",
+        description: "没有发现同名学员",
+      });
+      return;
+    }
+    
+    setDuplicateGroups(duplicates);
+    // 开始处理第一组
+    setCurrentMergeGroup(duplicates[0]);
+    setSelectedPrimaryStudent(duplicates[0][0]);
+    setShowMergeDialog(true);
+  };
+  
+  // 合并当前组的学员
+  const mergeCurrentGroup = async () => {
+    if (!selectedPrimaryStudent || currentMergeGroup.length === 0) return;
+    
+    try {
+      // 合并所有自定义字段（优先使用非空值）
+      const mergedStudent: Student = { ...selectedPrimaryStudent };
+      
+      currentMergeGroup.forEach(student => {
+        customFields.forEach(field => {
+          const fieldName = field.name;
+          // 如果主学员该字段为空，且当前学员有值，则使用当前学员的值
+          if (!mergedStudent[fieldName] && student[fieldName]) {
+            mergedStudent[fieldName] = student[fieldName];
+          }
+        });
+      });
+      
+      // 删除其他重复学员（保留主学员）
+      const studentsToDelete = currentMergeGroup.filter(s => s.id !== selectedPrimaryStudent.id);
+      for (const student of studentsToDelete) {
+        if (student.id) {
+          await deleteStudentFromDB(student.id);
+        }
+      }
+      
+      // 更新主学员信息
+      const updatedStudents = students.map(s => 
+        s.id === selectedPrimaryStudent.id ? mergedStudent : s
+      ).filter(s => !studentsToDelete.find(d => d.id === s.id));
+      
+      await saveStudents(updatedStudents);
+      
+      toast({
+        title: "合并成功",
+        description: `已将 ${currentMergeGroup.length} 名同名学员合并为一个`,
+      });
+      
+      // 处理下一组
+      const remainingGroups = duplicateGroups.filter(g => g !== currentMergeGroup);
+      if (remainingGroups.length > 0) {
+        setDuplicateGroups(remainingGroups);
+        setCurrentMergeGroup(remainingGroups[0]);
+        setSelectedPrimaryStudent(remainingGroups[0][0]);
+      } else {
+        // 全部处理完毕
+        setShowMergeDialog(false);
+        setDuplicateGroups([]);
+        setCurrentMergeGroup([]);
+        setSelectedPrimaryStudent(null);
+      }
+    } catch (error) {
+      toast({
+        title: "合并失败",
+        description: "合并学员信息时发生错误",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // 跳过当前组
+  const skipCurrentGroup = () => {
+    const remainingGroups = duplicateGroups.filter(g => g !== currentMergeGroup);
+    if (remainingGroups.length > 0) {
+      setDuplicateGroups(remainingGroups);
+      setCurrentMergeGroup(remainingGroups[0]);
+      setSelectedPrimaryStudent(remainingGroups[0][0]);
+    } else {
+      setShowMergeDialog(false);
+      setDuplicateGroups([]);
+      setCurrentMergeGroup([]);
+      setSelectedPrimaryStudent(null);
+    }
+  };
+
   // 手动添加学生
   const addStudentManually = async () => {
     if (!newStudent.name?.trim()) {
@@ -803,13 +915,24 @@ const StudentDashboard = () => {
                       <CardTitle>学生列表</CardTitle>
                       <CardDescription>管理所有学生信息</CardDescription>
                     </div>
-                    <Dialog open={showAddStudentDialog} onOpenChange={setShowAddStudentDialog}>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={detectDuplicates}
+                        variant="outline"
+                        disabled={students.length === 0}
+                      >
+                        <GitMerge className="w-4 h-4 mr-2" />
+                        检测重复
+                      </Button>
+                      <Dialog open={showAddStudentDialog} onOpenChange={setShowAddStudentDialog}>
                       <DialogTrigger asChild>
                         <Button>
                           <UserPlus className="w-4 h-4 mr-2" />
                           添加学生
                         </Button>
-                      </DialogTrigger>
+                        </DialogTrigger>
+                      </Dialog>
+                    </div>
                       <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
                           <DialogTitle>添加新学生</DialogTitle>
@@ -867,7 +990,6 @@ const StudentDashboard = () => {
                           </Button>
                         </DialogFooter>
                       </DialogContent>
-                    </Dialog>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1301,6 +1423,109 @@ const StudentDashboard = () => {
                 </Button>
               </div>
             </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Merge Duplicates Dialog */}
+      {showMergeDialog && currentMergeGroup.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <CardHeader className="flex-shrink-0">
+              <CardTitle className="flex items-center gap-2">
+                <GitMerge className="w-5 h-5" />
+                合并重复学员
+              </CardTitle>
+              <CardDescription>
+                发现 {currentMergeGroup.length} 名姓名为 "{currentMergeGroup[0].name}" 的学员
+                {duplicateGroups.length > 1 && ` (还有 ${duplicateGroups.length - 1} 组待处理)`}
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="flex-1 overflow-y-auto space-y-4">
+              <div className="bg-accent/10 p-4 rounded-lg mb-4">
+                <p className="text-sm font-medium mb-2">操作说明：</p>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• 选择要保留的主学员（保留其基本信息）</li>
+                  <li>• 其他学员的非空自定义字段会自动合并到主学员</li>
+                  <li>• 合并后，其他重复学员将被删除</li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-medium">选择要保留的主学员：</h4>
+                {currentMergeGroup.map((student) => (
+                  <div
+                    key={student.id}
+                    className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                      selectedPrimaryStudent?.id === student.id
+                        ? 'border-primary bg-primary/5 shadow-md'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                    onClick={() => setSelectedPrimaryStudent(student)}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h5 className="font-semibold text-lg">{student.name}</h5>
+                          {selectedPrimaryStudent?.id === student.id && (
+                            <Badge variant="default">主学员</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          班级: {student.class || '未设置'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* 显示自定义字段 */}
+                    {customFields.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2 pt-3 border-t">
+                        {customFields.map(field => (
+                          <div key={field.id} className="text-sm">
+                            <span className="text-muted-foreground">{field.name}: </span>
+                            <span className={student[field.name] ? 'font-medium' : 'text-muted-foreground italic'}>
+                              {student[field.name] || '未填写'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+            
+            <div className="flex-shrink-0 p-6 pt-0">
+              <div className="flex gap-3">
+                <Button 
+                  onClick={mergeCurrentGroup} 
+                  className="flex-1"
+                  disabled={!selectedPrimaryStudent}
+                >
+                  <GitMerge className="w-4 h-4 mr-2" />
+                  合并此组
+                </Button>
+                <Button 
+                  onClick={skipCurrentGroup} 
+                  variant="outline"
+                  className="flex-1"
+                >
+                  跳过此组
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setShowMergeDialog(false);
+                    setDuplicateGroups([]);
+                    setCurrentMergeGroup([]);
+                    setSelectedPrimaryStudent(null);
+                  }} 
+                  variant="ghost"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           </Card>
         </div>
       )}
