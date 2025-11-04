@@ -925,71 +925,71 @@ const StudentDashboard = () => {
                         检测重复
                       </Button>
                       <Dialog open={showAddStudentDialog} onOpenChange={setShowAddStudentDialog}>
-                      <DialogTrigger asChild>
-                        <Button>
-                          <UserPlus className="w-4 h-4 mr-2" />
-                          添加学生
-                        </Button>
-                        </DialogTrigger>
-                      </Dialog>
-                    </div>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>添加新学生</DialogTitle>
-                          <DialogDescription>
-                            请填写学生的基本信息和自定义标签
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="student-name" className="text-right">
-                              姓名 *
-                            </Label>
-                            <Input
-                              id="student-name"
-                              value={newStudent.name || ''}
-                              onChange={(e) => setNewStudent(prev => ({ ...prev, name: e.target.value }))}
-                              className="col-span-3"
-                              placeholder="请输入学生姓名"
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="student-class" className="text-right">
-                              班级
-                            </Label>
-                            <Input
-                              id="student-class"
-                              value={newStudent.class || ''}
-                              onChange={(e) => setNewStudent(prev => ({ ...prev, class: e.target.value }))}
-                              className="col-span-3"
-                              placeholder="请输入班级名称"
-                            />
-                          </div>
-                          {customFields.map(field => (
-                            <div key={field.id} className="grid grid-cols-4 items-center gap-4">
-                              <Label htmlFor={`field-${field.id}`} className="text-right">
-                                {field.name}
-                              </Label>
-                              <Input
-                                id={`field-${field.id}`}
-                                type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
-                                value={newStudent[field.name] || ''}
-                                onChange={(e) => setNewStudent(prev => ({ ...prev, [field.name]: e.target.value }))}
-                                className="col-span-3"
-                                placeholder={`请输入${field.name}`}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setShowAddStudentDialog(false)}>
-                            取消
-                          </Button>
-                          <Button onClick={addStudentManually}>
+                        <DialogTrigger asChild>
+                          <Button>
+                            <UserPlus className="w-4 h-4 mr-2" />
                             添加学生
                           </Button>
-                        </DialogFooter>
-                      </DialogContent>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle>添加新学生</DialogTitle>
+                            <DialogDescription>
+                              请填写学生的基本信息和自定义标签
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="student-name" className="text-right">
+                                姓名 *
+                              </Label>
+                              <Input
+                                id="student-name"
+                                value={newStudent.name || ''}
+                                onChange={(e) => setNewStudent(prev => ({ ...prev, name: e.target.value }))}
+                                className="col-span-3"
+                                placeholder="请输入学生姓名"
+                              />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="student-class" className="text-right">
+                                班级
+                              </Label>
+                              <Input
+                                id="student-class"
+                                value={newStudent.class || ''}
+                                onChange={(e) => setNewStudent(prev => ({ ...prev, class: e.target.value }))}
+                                className="col-span-3"
+                                placeholder="请输入班级名称"
+                              />
+                            </div>
+                            {customFields.map(field => (
+                              <div key={field.id} className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor={`field-${field.id}`} className="text-right">
+                                  {field.name}
+                                </Label>
+                                <Input
+                                  id={`field-${field.id}`}
+                                  type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
+                                  value={newStudent[field.name] || ''}
+                                  onChange={(e) => setNewStudent(prev => ({ ...prev, [field.name]: e.target.value }))}
+                                  className="col-span-3"
+                                  placeholder={`请输入${field.name}`}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowAddStudentDialog(false)}>
+                              取消
+                            </Button>
+                            <Button onClick={addStudentManually}>
+                              添加学生
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
