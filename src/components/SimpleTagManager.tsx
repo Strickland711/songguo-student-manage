@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2, Tag, Copy, X } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Edit, Trash2, Tag, Copy, X, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,25 +23,44 @@ interface TagData {
   created_at?: string;
 }
 
+interface CustomFieldData {
+  id?: string;
+  name: string;
+  type: string;
+  description?: string;
+  formula?: string;
+  formula_dependencies?: any;
+  created_at?: string;
+}
+
 const SimpleTagManager = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [tags, setTags] = useState<TagData[]>([]);
+  const [customFields, setCustomFields] = useState<CustomFieldData[]>([]);
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
+  const [showFieldDialog, setShowFieldDialog] = useState(false);
   const [editingTag, setEditingTag] = useState<TagData | null>(null);
+  const [editingField, setEditingField] = useState<CustomFieldData | null>(null);
   const [formData, setFormData] = useState<Omit<TagData, 'id' | 'created_at'>>({
     name: '',
     color: '#3B82F6',
     description: '',
     class_mappings: []
   });
+  const [fieldFormData, setFieldFormData] = useState<Omit<CustomFieldData, 'id' | 'created_at' | 'formula' | 'formula_dependencies'>>({
+    name: '',
+    type: 'text',
+    description: ''
+  });
   const [newClassName, setNewClassName] = useState('');
 
   useEffect(() => {
     if (user) {
       loadTags();
+      loadCustomFields();
       loadClasses();
     }
   }, [user]);
@@ -65,7 +86,6 @@ const SimpleTagManager = () => {
   const loadTags = async () => {
     if (!user) return;
     
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('tags')
@@ -77,7 +97,29 @@ const SimpleTagManager = () => {
       setTags(data || []);
     } catch (error: any) {
       toast({
-        title: "加载失败",
+        title: "加载标签失败",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadCustomFields = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('custom_fields')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCustomFields(data || []);
+    } catch (error: any) {
+      toast({
+        title: "加载自定义字段失败",
         description: error.message,
         variant: "destructive",
       });
@@ -223,6 +265,112 @@ const SimpleTagManager = () => {
     setNewClassName('');
   };
 
+  // Custom Field handlers
+  const handleOpenFieldDialog = (field?: CustomFieldData, isCopy = false) => {
+    if (field) {
+      setEditingField(isCopy ? null : field);
+      setFieldFormData({
+        name: isCopy ? `${field.name} (副本)` : field.name,
+        type: field.type,
+        description: field.description || ''
+      });
+    } else {
+      setEditingField(null);
+      setFieldFormData({
+        name: '',
+        type: 'text',
+        description: ''
+      });
+    }
+    setShowFieldDialog(true);
+  };
+
+  const handleSaveField = async () => {
+    if (!user || !fieldFormData.name.trim()) {
+      toast({
+        title: "错误",
+        description: "字段名称不能为空",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      if (editingField) {
+        const { error } = await supabase
+          .from('custom_fields')
+          .update({
+            name: fieldFormData.name,
+            type: fieldFormData.type,
+            description: fieldFormData.description || null
+          })
+          .eq('id', editingField.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "更新成功",
+          description: `字段"${fieldFormData.name}"已更新`,
+        });
+      } else {
+        const { error } = await supabase
+          .from('custom_fields')
+          .insert({
+            user_id: user.id,
+            name: fieldFormData.name,
+            type: fieldFormData.type,
+            description: fieldFormData.description || null
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: "创建成功",
+          description: `字段"${fieldFormData.name}"已创建`,
+        });
+      }
+
+      setShowFieldDialog(false);
+      loadCustomFields();
+    } catch (error: any) {
+      toast({
+        title: "保存失败",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteField = async (fieldId: string, fieldName: string) => {
+    if (!confirm(`确定要删除字段"${fieldName}"吗？这将同时删除所有学生的该字段数据。`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('custom_fields')
+        .delete()
+        .eq('id', fieldId)
+        .eq('user_id', user!.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "删除成功",
+        description: `字段"${fieldName}"已删除`,
+      });
+
+      loadCustomFields();
+    } catch (error: any) {
+      toast({
+        title: "删除失败",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -237,84 +385,177 @@ const SimpleTagManager = () => {
         <div>
           <h2 className="text-2xl font-bold text-primary">标签管理</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            创建和管理学生标签，用于分类和管理学生
+            管理分类标签和自定义字段
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus className="w-4 h-4" />
-          新建标签
-        </Button>
       </div>
 
-      <div className="grid gap-4">
-        {tags.length === 0 ? (
-          <Card className="shadow-card">
-            <CardContent className="py-12">
-              <div className="text-center">
-                <Tag className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <h3 className="text-lg font-medium text-muted-foreground">暂无标签</h3>
-                <p className="text-sm text-muted-foreground mt-2">点击"新建标签"创建您的第一个标签</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          tags.map(tag => (
-            <Card key={tag.id} className="shadow-card">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div 
-                        className="w-4 h-4 rounded-full" 
-                        style={{ backgroundColor: tag.color }}
-                      />
-                      <h3 className="text-lg font-semibold">{tag.name}</h3>
-                    </div>
-                    {tag.description && (
-                      <p className="text-sm text-muted-foreground mb-2">{tag.description}</p>
-                    )}
-                    {tag.class_mappings && tag.class_mappings.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {tag.class_mappings.map(className => (
-                          <Badge key={className} variant="secondary" className="text-xs">
-                            {className}
-                          </Badge>
-                        ))}
+      <Tabs defaultValue="tags" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="tags" className="gap-2">
+            <Tag className="w-4 h-4" />
+            分类标签
+          </TabsTrigger>
+          <TabsTrigger value="fields" className="gap-2">
+            <FileText className="w-4 h-4" />
+            自定义字段
+          </TabsTrigger>
+        </TabsList>
+
+        {/* 分类标签 Tab */}
+        <TabsContent value="tags" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => handleOpenDialog()} className="gap-2">
+              <Plus className="w-4 h-4" />
+              新建标签
+            </Button>
+          </div>
+
+          <div className="grid gap-4">
+            {tags.length === 0 ? (
+              <Card className="shadow-card">
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <Tag className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-20" />
+                    <h3 className="text-lg font-medium text-muted-foreground">暂无分类标签</h3>
+                    <p className="text-sm text-muted-foreground mt-2">点击"新建标签"创建您的第一个分类标签</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              tags.map(tag => (
+                <Card key={tag.id} className="shadow-card">
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div 
+                            className="w-4 h-4 rounded-full" 
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          <h3 className="text-lg font-semibold">{tag.name}</h3>
+                        </div>
+                        {tag.description && (
+                          <p className="text-sm text-muted-foreground mb-2">{tag.description}</p>
+                        )}
+                        {tag.class_mappings && tag.class_mappings.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {tag.class_mappings.map(className => (
+                              <Badge key={className} variant="secondary" className="text-xs">
+                                {className}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenDialog(tag)}
+                          title="编辑标签"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenDialog(tag, true)}
+                          title="复制标签"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(tag.id!, tag.name)}
+                          title="删除标签"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        {/* 自定义字段 Tab */}
+        <TabsContent value="fields" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => handleOpenFieldDialog()} className="gap-2">
+              <Plus className="w-4 h-4" />
+              新建字段
+            </Button>
+          </div>
+
+          <div className="grid gap-4">
+            {customFields.length === 0 ? (
+              <Card className="shadow-card">
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-20" />
+                    <h3 className="text-lg font-medium text-muted-foreground">暂无自定义字段</h3>
+                    <p className="text-sm text-muted-foreground mt-2">点击"新建字段"创建您的第一个自定义字段</p>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenDialog(tag)}
-                      title="编辑标签"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenDialog(tag, true)}
-                      title="复制标签"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(tag.id!, tag.name)}
-                      title="删除标签"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+                </CardContent>
+              </Card>
+            ) : (
+              customFields.map(field => (
+                <Card key={field.id} className="shadow-card">
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <FileText className="w-4 h-4 text-primary" />
+                          <h3 className="text-lg font-semibold">{field.name}</h3>
+                          <Badge variant="outline">{field.type}</Badge>
+                        </div>
+                        {field.description && (
+                          <p className="text-sm text-muted-foreground mb-2">{field.description}</p>
+                        )}
+                        {field.formula && (
+                          <div className="mt-2 p-2 bg-muted/50 rounded text-xs font-mono">
+                            公式: {field.formula}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenFieldDialog(field)}
+                          title="编辑字段"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenFieldDialog(field, true)}
+                          title="复制字段"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteField(field.id!, field.name)}
+                          title="删除字段"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
@@ -446,6 +687,75 @@ const SimpleTagManager = () => {
               disabled={!formData.name.trim()}
             >
               {editingTag ? '保存' : '创建'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom Field Dialog */}
+      <Dialog open={showFieldDialog} onOpenChange={setShowFieldDialog}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingField ? '编辑字段' : '新建字段'}
+            </DialogTitle>
+            <DialogDescription>
+              设置自定义字段的名称、类型和描述信息
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="field-name">字段名称 *</Label>
+              <Input
+                id="field-name"
+                value={fieldFormData.name}
+                onChange={(e) => setFieldFormData({ ...fieldFormData, name: e.target.value })}
+                placeholder="例如：家长电话、住址..."
+                className="mt-2"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="field-type">字段类型</Label>
+              <Select
+                value={fieldFormData.type}
+                onValueChange={(value) => setFieldFormData({ ...fieldFormData, type: value })}
+              >
+                <SelectTrigger className="w-full mt-2">
+                  <SelectValue placeholder="选择字段类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">文本</SelectItem>
+                  <SelectItem value="number">数字</SelectItem>
+                  <SelectItem value="date">日期</SelectItem>
+                  <SelectItem value="email">邮箱</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="field-description">字段描述（可选）</Label>
+              <Textarea
+                id="field-description"
+                value={fieldFormData.description}
+                onChange={(e) => setFieldFormData({ ...fieldFormData, description: e.target.value })}
+                placeholder="简要描述这个字段的用途..."
+                rows={3}
+                className="mt-2"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFieldDialog(false)}>
+              取消
+            </Button>
+            <Button 
+              onClick={handleSaveField}
+              disabled={!fieldFormData.name.trim()}
+            >
+              {editingField ? '保存' : '创建'}
             </Button>
           </DialogFooter>
         </DialogContent>

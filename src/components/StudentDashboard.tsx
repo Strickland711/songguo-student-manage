@@ -54,8 +54,6 @@ const StudentDashboard = () => {
   } = useStudentData();
   const [uploading, setUploading] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [newFieldName, setNewFieldName] = useState('');
-  const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'date' | 'email'>('text');
   
   // 新增状态用于列映射
   const [excelData, setExcelData] = useState<ExcelData | null>(null);
@@ -317,41 +315,6 @@ const StudentDashboard = () => {
     setExcelData(null);
     setColumnMappings([]);
     setSelectedAsCustomFields([]);
-  };
-
-  const addCustomField = async () => {
-    if (!newFieldName.trim()) return;
-    
-    const newField: CustomField = {
-      // Don't set id, let database generate UUID
-      name: newFieldName,
-      type: newFieldType,
-    };
-    
-    try {
-      const updatedFields = [...customFields, newField];
-      await saveCustomFields(updatedFields);
-      setNewFieldName('');
-      setNewFieldType('text');
-      toast({
-        title: "标签添加成功",
-        description: `已添加自定义标签: ${newFieldName}`,
-      });
-    } catch (error) {
-      toast({
-        title: "保存标签失败",
-        description: "添加标签时发生错误，请重试",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const removeCustomField = async (fieldId: string) => {
-    try {
-      await deleteCustomFieldFromDB(fieldId);
-    } catch (error) {
-      // Error is already handled in deleteCustomFieldFromDB
-    }
   };
 
   const updateStudent = async (updatedStudent: Student) => {
@@ -1135,70 +1098,6 @@ const StudentDashboard = () => {
           <TabsContent value="settings" className="space-y-6">
             {/* Tag Management */}
             <SimpleTagManager />
-
-            {/* Custom Fields Management */}
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle>自定义标签管理</CardTitle>
-                <CardDescription>添加或删除学生信息的自定义标签</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor="field-name">标签名称</Label>
-                    <Input
-                      id="field-name"
-                      value={newFieldName}
-                      onChange={(e) => setNewFieldName(e.target.value)}
-                      placeholder="输入标签名称"
-                    />
-                  </div>
-                  <div className="w-32">
-                    <Label htmlFor="field-type">标签类型</Label>
-                    <select
-                      id="field-type"
-                      value={newFieldType}
-                      onChange={(e) => setNewFieldType(e.target.value as any)}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                    >
-                      <option value="text">文本</option>
-                      <option value="number">数字</option>
-                      <option value="date">日期</option>
-                      <option value="email">邮箱</option>
-                    </select>
-                  </div>
-                  <div className="flex items-end">
-                    <Button onClick={addCustomField} disabled={!newFieldName.trim()}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      添加标签
-                    </Button>
-                  </div>
-                </div>
-
-                {customFields.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium">已添加的标签</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {customFields.map(field => (
-                        <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <span className="font-medium">{field.name}</span>
-                            <Badge variant="secondary" className="ml-2">{field.type}</Badge>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => removeCustomField(field.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
             {/* Tag Drag Management */}
             <TagDragSystem
