@@ -457,6 +457,7 @@ export type Database = {
       tags: {
         Row: {
           ai_prompt: string | null
+          class_mappings: string[] | null
           color: string | null
           created_at: string
           description: string | null
@@ -468,6 +469,7 @@ export type Database = {
         }
         Insert: {
           ai_prompt?: string | null
+          class_mappings?: string[] | null
           color?: string | null
           created_at?: string
           description?: string | null
@@ -479,6 +481,7 @@ export type Database = {
         }
         Update: {
           ai_prompt?: string | null
+          class_mappings?: string[] | null
           color?: string | null
           created_at?: string
           description?: string | null

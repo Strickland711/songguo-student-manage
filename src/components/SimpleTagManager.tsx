@@ -6,7 +6,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Edit, Trash2, Tag } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Edit, Trash2, Tag, Copy, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +17,7 @@ interface TagData {
   name: string;
   color: string;
   description?: string;
+  class_mappings?: string[];
   created_at?: string;
 }
 
@@ -23,20 +25,42 @@ const SimpleTagManager = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [tags, setTags] = useState<TagData[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingTag, setEditingTag] = useState<TagData | null>(null);
   const [formData, setFormData] = useState<Omit<TagData, 'id' | 'created_at'>>({
     name: '',
     color: '#3B82F6',
-    description: ''
+    description: '',
+    class_mappings: []
   });
+  const [newClassName, setNewClassName] = useState('');
 
   useEffect(() => {
     if (user) {
       loadTags();
+      loadClasses();
     }
   }, [user]);
+
+  const loadClasses = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('class')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      
+      const uniqueClasses = [...new Set(data?.map(s => s.class) || [])];
+      setAvailableClasses(uniqueClasses);
+    } catch (error: any) {
+      console.error('Failed to load classes:', error);
+    }
+  };
 
   const loadTags = async () => {
     if (!user) return;
@@ -62,22 +86,25 @@ const SimpleTagManager = () => {
     }
   };
 
-  const handleOpenDialog = (tag?: TagData) => {
+  const handleOpenDialog = (tag?: TagData, isCopy = false) => {
     if (tag) {
-      setEditingTag(tag);
+      setEditingTag(isCopy ? null : tag);
       setFormData({
-        name: tag.name,
+        name: isCopy ? `${tag.name} (副本)` : tag.name,
         color: tag.color,
-        description: tag.description || ''
+        description: tag.description || '',
+        class_mappings: tag.class_mappings || []
       });
     } else {
       setEditingTag(null);
       setFormData({
         name: '',
         color: '#3B82F6',
-        description: ''
+        description: '',
+        class_mappings: []
       });
     }
+    setNewClassName('');
     setShowDialog(true);
   };
 
@@ -98,7 +125,8 @@ const SimpleTagManager = () => {
           .update({
             name: formData.name,
             color: formData.color,
-            description: formData.description || null
+            description: formData.description || null,
+            class_mappings: formData.class_mappings || []
           })
           .eq('id', editingTag.id)
           .eq('user_id', user.id);
@@ -116,7 +144,8 @@ const SimpleTagManager = () => {
             user_id: user.id,
             name: formData.name,
             color: formData.color,
-            description: formData.description || null
+            description: formData.description || null,
+            class_mappings: formData.class_mappings || []
           });
 
         if (error) throw error;
@@ -167,6 +196,33 @@ const SimpleTagManager = () => {
     }
   };
 
+  const handleAddClass = (className: string) => {
+    if (!className.trim()) return;
+    
+    const currentMappings = formData.class_mappings || [];
+    if (!currentMappings.includes(className)) {
+      setFormData({
+        ...formData,
+        class_mappings: [...currentMappings, className]
+      });
+    }
+  };
+
+  const handleRemoveClass = (className: string) => {
+    setFormData({
+      ...formData,
+      class_mappings: (formData.class_mappings || []).filter(c => c !== className)
+    });
+  };
+
+  const handleAddNewClass = () => {
+    if (newClassName.trim() && !availableClasses.includes(newClassName.trim())) {
+      setAvailableClasses([...availableClasses, newClassName.trim()]);
+    }
+    handleAddClass(newClassName.trim());
+    setNewClassName('');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -215,7 +271,16 @@ const SimpleTagManager = () => {
                       <h3 className="text-lg font-semibold">{tag.name}</h3>
                     </div>
                     {tag.description && (
-                      <p className="text-sm text-muted-foreground">{tag.description}</p>
+                      <p className="text-sm text-muted-foreground mb-2">{tag.description}</p>
+                    )}
+                    {tag.class_mappings && tag.class_mappings.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {tag.class_mappings.map(className => (
+                          <Badge key={className} variant="secondary" className="text-xs">
+                            {className}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-2 ml-4">
@@ -223,13 +288,23 @@ const SimpleTagManager = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleOpenDialog(tag)}
+                      title="编辑标签"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => handleOpenDialog(tag, true)}
+                      title="复制标签"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDelete(tag.id!, tag.name)}
+                      title="删除标签"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -289,6 +364,75 @@ const SimpleTagManager = () => {
                   rows={3}
                   className="mt-2"
                 />
+              </div>
+
+              <div>
+                <Label>关联班级（可选）</Label>
+                <p className="text-xs text-muted-foreground mt-1 mb-3">
+                  选择此标签适用的班级，便于后续批量管理
+                </p>
+                
+                {/* Display selected classes */}
+                {formData.class_mappings && formData.class_mappings.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {formData.class_mappings.map(className => (
+                      <Badge 
+                        key={className} 
+                        variant="secondary" 
+                        className="gap-1 pr-1"
+                      >
+                        {className}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 hover:bg-transparent"
+                          onClick={() => handleRemoveClass(className)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Existing classes selector */}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {availableClasses
+                      .filter(c => !formData.class_mappings?.includes(c))
+                      .map(className => (
+                        <Button
+                          key={className}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAddClass(className)}
+                          className="h-8"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          {className}
+                        </Button>
+                      ))}
+                  </div>
+
+                  {/* Add new class */}
+                  <div className="flex gap-2 mt-3">
+                    <Input
+                      placeholder="添加新班级..."
+                      value={newClassName}
+                      onChange={(e) => setNewClassName(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddNewClass()}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAddNewClass}
+                      disabled={!newClassName.trim()}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </ScrollArea>
