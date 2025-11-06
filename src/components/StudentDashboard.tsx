@@ -17,6 +17,7 @@ import TagDragSystem from './TagDragSystem';
 import StudentSpace from './StudentSpace';
 import TagGenerator from './TagGenerator';
 import { FormulaFieldEditor } from './FormulaFieldEditor';
+import SimpleTagManager from './SimpleTagManager';
 import { useUserRole } from '@/hooks/useUserRole';
 
 import { useStudentData, Student, CustomField } from '@/hooks/useStudentData';
@@ -1132,6 +1133,9 @@ const StudentDashboard = () => {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
+            {/* Tag Management */}
+            <SimpleTagManager />
+
             {/* Custom Fields Management */}
             <Card className="shadow-card">
               <CardHeader>
@@ -1197,7 +1201,7 @@ const StudentDashboard = () => {
             </Card>
 
             {/* Tag Drag Management */}
-            <TagDragSystem 
+            <TagDragSystem
               students={students}
               customFields={customFields}
               onUpdateStudents={saveStudents}
