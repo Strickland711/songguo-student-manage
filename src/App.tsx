@@ -11,6 +11,7 @@ import NotFound from './pages/NotFound';
 import ProductIntro from './pages/ProductIntro';
 import FeedbackPage from './pages/FeedbackPage';
 import ScoringPage from './pages/ScoringPage';
+import ClassroomPage from './pages/ClassroomPage';
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/feedback" element={<FeedbackPage />} />
             <Route path="/scoring" element={<ScoringPage />} />
+            <Route path="/classroom" element={<ClassroomPage />} />
             <Route path="/intro" element={<ProductIntro />} />
             <Route path="/admin" element={<Admin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

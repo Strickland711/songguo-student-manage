@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare, Download, GitMerge } from 'lucide-react';
+import { Upload, Users, FileSpreadsheet, Settings, Plus, Edit, Trash2, ArrowRight, X, BookOpen, UserPlus, MessageSquare, Download, GitMerge, ClipboardList } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 import ScoringSystem from './ScoringSystem';
@@ -653,6 +653,14 @@ const StudentDashboard = () => {
             >
               <MessageSquare className="w-4 h-4 mr-2" />
               进入反馈系统
+            </Button>
+            <Button 
+              onClick={() => navigate('/classroom')} 
+              variant="outline"
+              disabled={students.length === 0}
+            >
+              <ClipboardList className="w-4 h-4 mr-2" />
+              进入课堂记录
             </Button>
             <Button 
               onClick={() => setShowExportDialog(true)} 
