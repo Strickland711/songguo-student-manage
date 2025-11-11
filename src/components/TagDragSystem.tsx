@@ -22,13 +22,15 @@ interface TagDragSystemProps {
   students: Student[];
   customFields: CustomField[];
   onUpdateStudents: (students: Student[]) => Promise<void>;
+  onStudentDoubleClick?: (student: Student) => void;
 }
 
 interface DraggableStudentProps {
   student: Student;
+  onDoubleClick?: (student: Student) => void;
 }
 
-const DraggableStudent = ({ student }: DraggableStudentProps) => {
+const DraggableStudent = ({ student, onDoubleClick }: DraggableStudentProps) => {
   const {
     attributes,
     listeners,
@@ -50,6 +52,7 @@ const DraggableStudent = ({ student }: DraggableStudentProps) => {
         "flex items-center justify-center p-2 bg-background border rounded-md cursor-grab active:cursor-grabbing",
         "hover:border-primary/50 transition-colors text-sm font-medium min-w-0"
       )}
+      onDoubleClick={() => onDoubleClick?.(student)}
     >
       <span className="truncate">{student.name}</span>
     </div>
@@ -62,9 +65,10 @@ interface DroppableFieldGroupProps {
   studentsMap: Map<string, Student[]>;
   onToggleExpand: (fieldName: string, value: string) => void;
   expandedGroups: Set<string>;
+  onStudentDoubleClick?: (student: Student) => void;
 }
 
-const DroppableFieldGroup = ({ field, values, studentsMap, onToggleExpand, expandedGroups }: DroppableFieldGroupProps) => {
+const DroppableFieldGroup = ({ field, values, studentsMap, onToggleExpand, expandedGroups, onStudentDoubleClick }: DroppableFieldGroupProps) => {
   return (
     <Card className="shadow-card">
       <CardHeader>
@@ -87,6 +91,7 @@ const DroppableFieldGroup = ({ field, values, studentsMap, onToggleExpand, expan
               students={studentsInGroup}
               isExpanded={isExpanded}
               onToggleExpand={() => onToggleExpand(field.name, value)}
+              onStudentDoubleClick={onStudentDoubleClick}
             />
           );
         })}
@@ -101,9 +106,10 @@ interface DroppableValueGroupProps {
   students: Student[];
   isExpanded: boolean;
   onToggleExpand: () => void;
+  onStudentDoubleClick?: (student: Student) => void;
 }
 
-const DroppableValueGroup = ({ fieldName, value, students, isExpanded, onToggleExpand }: DroppableValueGroupProps) => {
+const DroppableValueGroup = ({ fieldName, value, students, isExpanded, onToggleExpand, onStudentDoubleClick }: DroppableValueGroupProps) => {
   const { isOver, setNodeRef } = useDroppable({
     id: `${fieldName}::${value}`,
   });
@@ -149,7 +155,7 @@ const DroppableValueGroup = ({ fieldName, value, students, isExpanded, onToggleE
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                 {students.map(student => (
-                  <DraggableStudent key={student.id} student={student} />
+                  <DraggableStudent key={student.id} student={student} onDoubleClick={onStudentDoubleClick} />
                 ))}
               </div>
             )}
@@ -160,7 +166,7 @@ const DroppableValueGroup = ({ fieldName, value, students, isExpanded, onToggleE
   );
 };
 
-const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSystemProps) => {
+const TagDragSystem = ({ students, customFields, onUpdateStudents, onStudentDoubleClick }: TagDragSystemProps) => {
   const { toast } = useToast();
   const [selectedField, setSelectedField] = useState<CustomField | null>(customFields[0] || null);
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
@@ -323,6 +329,7 @@ const TagDragSystem = ({ students, customFields, onUpdateStudents }: TagDragSyst
             studentsMap={studentsMap}
             onToggleExpand={toggleGroupExpansion}
             expandedGroups={expandedGroups}
+            onStudentDoubleClick={onStudentDoubleClick}
           />
         </DndContext>
       )}

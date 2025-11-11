@@ -286,7 +286,7 @@ const StudentSpace = memo(({ student, onClose }: StudentSpaceProps) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Tag className="w-5 h-5 text-primary" />
-                  学生标签与自定义信息
+                  学生标签
                 </CardTitle>
               </CardHeader>
               <CardContent>

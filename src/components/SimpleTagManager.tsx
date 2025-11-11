@@ -385,177 +385,138 @@ const SimpleTagManager = () => {
         <div>
           <h2 className="text-2xl font-bold text-primary">标签管理</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            管理分类标签和自定义字段
+            管理所有标签和自定义字段
           </p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => handleOpenDialog()} className="gap-2">
+            <Plus className="w-4 h-4" />
+            新建分类标签
+          </Button>
+          <Button onClick={() => handleOpenFieldDialog()} className="gap-2" variant="outline">
+            <Plus className="w-4 h-4" />
+            新建自定义字段
+          </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="tags" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="tags" className="gap-2">
-            <Tag className="w-4 h-4" />
-            分类标签
-          </TabsTrigger>
-          <TabsTrigger value="fields" className="gap-2">
-            <FileText className="w-4 h-4" />
-            自定义字段
-          </TabsTrigger>
-        </TabsList>
-
-        {/* 分类标签 Tab */}
-        <TabsContent value="tags" className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={() => handleOpenDialog()} className="gap-2">
-              <Plus className="w-4 h-4" />
-              新建标签
-            </Button>
-          </div>
-
-          <div className="grid gap-4">
-            {tags.length === 0 ? (
-              <Card className="shadow-card">
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <Tag className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-20" />
-                    <h3 className="text-lg font-medium text-muted-foreground">暂无分类标签</h3>
-                    <p className="text-sm text-muted-foreground mt-2">点击"新建标签"创建您的第一个分类标签</p>
+      <div className="grid gap-4">
+        {tags.length === 0 && customFields.length === 0 ? (
+          <Card className="shadow-card">
+            <CardContent className="py-12">
+              <div className="text-center">
+                <Tag className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-20" />
+                <h3 className="text-lg font-medium text-muted-foreground">暂无标签</h3>
+                <p className="text-sm text-muted-foreground mt-2">点击上方按钮创建您的第一个标签或自定义字段</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {tags.map(tag => (
+              <Card key={`tag-${tag.id}`} className="shadow-card">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Tag className="w-4 h-4 text-primary" />
+                        <div 
+                          className="w-4 h-4 rounded-full" 
+                          style={{ backgroundColor: tag.color }}
+                        />
+                        <h3 className="text-lg font-semibold">{tag.name}</h3>
+                        <Badge variant="outline" className="text-xs">分类标签</Badge>
+                      </div>
+                      {tag.description && (
+                        <p className="text-sm text-muted-foreground mb-2">{tag.description}</p>
+                      )}
+                      {tag.class_mappings && tag.class_mappings.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {tag.class_mappings.map(className => (
+                            <Badge key={className} variant="secondary" className="text-xs">
+                              {className}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenDialog(tag)}
+                        title="编辑标签"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenDialog(tag, true)}
+                        title="复制标签"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(tag.id!, tag.name)}
+                        title="删除标签"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-            ) : (
-              tags.map(tag => (
-                <Card key={tag.id} className="shadow-card">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div 
-                            className="w-4 h-4 rounded-full" 
-                            style={{ backgroundColor: tag.color }}
-                          />
-                          <h3 className="text-lg font-semibold">{tag.name}</h3>
-                        </div>
-                        {tag.description && (
-                          <p className="text-sm text-muted-foreground mb-2">{tag.description}</p>
-                        )}
-                        {tag.class_mappings && tag.class_mappings.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {tag.class_mappings.map(className => (
-                              <Badge key={className} variant="secondary" className="text-xs">
-                                {className}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+            ))}
+            {customFields.map(field => (
+              <Card key={`field-${field.id}`} className="shadow-card">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <FileText className="w-4 h-4 text-accent" />
+                        <h3 className="text-lg font-semibold">{field.name}</h3>
+                        <Badge variant="secondary" className="text-xs">{field.type}</Badge>
                       </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenDialog(tag)}
-                          title="编辑标签"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenDialog(tag, true)}
-                          title="复制标签"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(tag.id!, tag.name)}
-                          title="删除标签"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {field.description && (
+                        <p className="text-sm text-muted-foreground mb-2">{field.description}</p>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
-
-        {/* 自定义字段 Tab */}
-        <TabsContent value="fields" className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={() => handleOpenFieldDialog()} className="gap-2">
-              <Plus className="w-4 h-4" />
-              新建字段
-            </Button>
-          </div>
-
-          <div className="grid gap-4">
-            {customFields.length === 0 ? (
-              <Card className="shadow-card">
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-20" />
-                    <h3 className="text-lg font-medium text-muted-foreground">暂无自定义字段</h3>
-                    <p className="text-sm text-muted-foreground mt-2">点击"新建字段"创建您的第一个自定义字段</p>
+                    <div className="flex items-center gap-2 ml-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenFieldDialog(field)}
+                        title="编辑字段"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenFieldDialog(field, true)}
+                        title="复制字段"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteField(field.id!, field.name)}
+                        title="删除字段"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-            ) : (
-              customFields.map(field => (
-                <Card key={field.id} className="shadow-card">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <FileText className="w-4 h-4 text-primary" />
-                          <h3 className="text-lg font-semibold">{field.name}</h3>
-                          <Badge variant="outline">{field.type}</Badge>
-                        </div>
-                        {field.description && (
-                          <p className="text-sm text-muted-foreground mb-2">{field.description}</p>
-                        )}
-                        {field.formula && (
-                          <div className="mt-2 p-2 bg-muted/50 rounded text-xs font-mono">
-                            公式: {field.formula}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenFieldDialog(field)}
-                          title="编辑字段"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenFieldDialog(field, true)}
-                          title="复制字段"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteField(field.id!, field.name)}
-                          title="删除字段"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+            ))}
+          </>
+        )}
+      </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">

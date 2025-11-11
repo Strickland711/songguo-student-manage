@@ -1104,6 +1104,7 @@ const StudentDashboard = () => {
               students={students}
               customFields={customFields}
               onUpdateStudents={saveStudents}
+              onStudentDoubleClick={(student) => setSelectedStudentForSpace(student)}
             />
           </TabsContent>
         </Tabs>
