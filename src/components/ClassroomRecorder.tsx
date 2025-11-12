@@ -42,7 +42,7 @@ export const ClassroomRecorder = () => {
   
   const [currentSessionStudents, setCurrentSessionStudents] = useState<Student[]>([]);
   
-  const classes = Array.from(new Set(students.map(s => s.class)));
+  const classes = Array.from(new Set(students.map(s => s.class))).filter(c => c && c.trim() !== '');
   
   const handleCreateSession = async () => {
     if (!newSessionData.class_name || !newSessionData.lesson_title) return;
