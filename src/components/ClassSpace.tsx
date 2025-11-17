@@ -307,7 +307,7 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
       classMap.get(className)!.push(student);
     });
     
-    const newClassDataList = Array.from(classMap.entries()).map(([name, studentsInClass]) => {
+    let newClassDataList = Array.from(classMap.entries()).map(([name, studentsInClass]) => {
       const existingClass = classDataList.find(c => c.name === name);
       return {
         id: existingClass?.id || `class-${Date.now()}-${name}`,
@@ -316,6 +316,30 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
         expanded: existingClass ? existingClass.expanded : true,
       };
     });
+    
+    // 应用保存的班级顺序
+    const savedOrder = loadClassOrder();
+    if (savedOrder.length > 0) {
+      const orderedClasses: ClassData[] = [];
+      const unorderedClasses: ClassData[] = [];
+      
+      // 按保存的顺序排列已知班级
+      savedOrder.forEach((className: string) => {
+        const classData = newClassDataList.find(c => c.name === className);
+        if (classData) {
+          orderedClasses.push(classData);
+        }
+      });
+      
+      // 添加新的班级（不在保存的顺序中）
+      newClassDataList.forEach(classData => {
+        if (!savedOrder.includes(classData.name)) {
+          unorderedClasses.push(classData);
+        }
+      });
+      
+      newClassDataList = [...orderedClasses, ...unorderedClasses];
+    }
     
     // 更精确的变化检测（避免不必要的重新渲染）
     const currentSnapshot = classDataList.map(c => ({ 

@@ -2656,7 +2656,7 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
                   totalCount,
                   maxScore: exam.scores[questionIndex] || 0
                 };
-              });
+              }).sort((a, b) => a.questionIndex - b.questionIndex); // 确保按题号顺序排列
               
               // 为柱状图准备数据，使用不同颜色
               const chartColors = [
