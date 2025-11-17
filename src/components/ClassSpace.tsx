@@ -236,7 +236,18 @@ const DroppableClass = ({ classData, onToggleExpand, onEditClassName, onStudentD
 const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdateClassName, onStudentDoubleClick }: ClassSpaceProps) => {
   const { toast } = useToast();
   
-  // 按班级分组学生数据
+  // 从localStorage加载班级顺序
+  const loadClassOrder = () => {
+    const saved = localStorage.getItem('classSpaceOrder');
+    return saved ? JSON.parse(saved) : [];
+  };
+  
+  // 保存班级顺序到localStorage
+  const saveClassOrder = (order: string[]) => {
+    localStorage.setItem('classSpaceOrder', JSON.stringify(order));
+  };
+  
+  // 按班级分组学生数据，并应用保存的顺序
   const initialClassData = useMemo(() => {
     const classMap = new Map<string, Student[]>();
     
@@ -248,12 +259,38 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
       classMap.get(className)!.push(student);
     });
     
-    return Array.from(classMap.entries()).map(([name, students], index) => ({
+    const classDataArray = Array.from(classMap.entries()).map(([name, students], index) => ({
       id: `class-${index}-${name}`,
       name,
       students,
       expanded: true,
     }));
+    
+    // 应用保存的顺序
+    const savedOrder = loadClassOrder();
+    if (savedOrder.length > 0) {
+      const orderedClasses: ClassData[] = [];
+      const unorderedClasses: ClassData[] = [];
+      
+      // 按保存的顺序排列已知班级
+      savedOrder.forEach((className: string) => {
+        const classData = classDataArray.find(c => c.name === className);
+        if (classData) {
+          orderedClasses.push(classData);
+        }
+      });
+      
+      // 添加新的班级（不在保存的顺序中）
+      classDataArray.forEach(classData => {
+        if (!savedOrder.includes(classData.name)) {
+          unorderedClasses.push(classData);
+        }
+      });
+      
+      return [...orderedClasses, ...unorderedClasses];
+    }
+    
+    return classDataArray;
   }, [students]);
 
   const [classDataList, setClassDataList] = useState<ClassData[]>(initialClassData);
@@ -357,10 +394,15 @@ const ClassSpace = ({ students, onUpdateStudents, onUpdateStudentClass, onUpdate
       const newIndex = classDataList.findIndex(c => c.id === overId);
       
       if (oldIndex !== newIndex) {
-        setClassDataList(arrayMove(classDataList, oldIndex, newIndex));
+        const newOrder = arrayMove(classDataList, oldIndex, newIndex);
+        setClassDataList(newOrder);
+        
+        // 保存班级顺序
+        saveClassOrder(newOrder.map(c => c.name));
+        
         toast({
           title: "排序成功",
-          description: "班级顺序已更新",
+          description: "班级顺序已保存",
         });
       }
       return;
