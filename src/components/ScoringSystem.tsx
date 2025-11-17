@@ -237,11 +237,9 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
   useEffect(() => {
     let filtered = students;
     
-    // 按班级筛选 - 使用精确匹配或包含匹配
+    // 按班级筛选 - 使用精确匹配以正确区分特殊符号（如加减号）
     if (classFilter.trim() && classFilter !== 'all') {
-      filtered = filtered.filter(student => 
-        student.class === classFilter || student.class.includes(classFilter)
-      );
+      filtered = filtered.filter(student => student.class === classFilter);
     }
     
     // 按姓名筛选 - 同时支持拼音首字母和全名匹配
@@ -2721,7 +2719,7 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
                     <CardHeader>
                       <CardTitle>各题目正确率对比</CardTitle>
                       <CardDescription>
-                        展示每道题目的正确率，红色表示错误率较高的题目
+                        按题号顺序显示各题正确率：绿色(&gt;60%) 黄色(40-60%) 红色(&lt;40%)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2749,8 +2747,8 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
                               {questionAnalysis.map((entry, index) => (
                                 <Cell 
                                   key={`cell-${index}`} 
-                                  fill={entry.correctRate >= 80 ? '#22c55e' : 
-                                        entry.correctRate >= 60 ? '#eab308' : 
+                                  fill={entry.correctRate > 60 ? '#22c55e' : 
+                                        entry.correctRate >= 40 ? '#eab308' : 
                                         '#ef4444'} 
                                 />
                               ))}
