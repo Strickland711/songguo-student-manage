@@ -3089,9 +3089,16 @@ const ResultsView = ({
   // 获取趋势学生信息
   const trendStudent = trendStudentId ? students.find(s => s.id === trendStudentId) : null;
 
-  // 准备趋势图表数据
+  // 准备趋势图表数据（包含班级平均分）
   const getTrendData = () => {
     if (!trendStudentId || trendExamOrder.length === 0) return [];
+    
+    // 获取学生所在班级
+    const studentClass = trendStudent?.class;
+    // 获取同班级的所有学生ID
+    const classStudentIds = studentClass 
+      ? students.filter(s => s.class === studentClass).map(s => s.id)
+      : [];
     
     return trendExamOrder.map(examId => {
       const exam = exams.find(e => e.id === examId);
@@ -3100,6 +3107,17 @@ const ResultsView = ({
       const maxScore = exam.scores.reduce((sum, s) => sum + s, 0);
       const result = examResults.find(r => r.exam_id === examId && r.student_id === trendStudentId);
       
+      // 计算班级平均分
+      const classResults = examResults.filter(r => 
+        r.exam_id === examId && classStudentIds.includes(r.student_id)
+      );
+      const classAvgScore = classResults.length > 0
+        ? classResults.reduce((sum, r) => sum + r.total_score, 0) / classResults.length
+        : null;
+      const classAvgPercentage = classAvgScore !== null && maxScore > 0
+        ? Math.round((classAvgScore / maxScore) * 100)
+        : null;
+      
       return {
         examId: exam.id,
         name: exam.name,
@@ -3107,7 +3125,10 @@ const ResultsView = ({
         score: result?.total_score ?? null,
         percentage: result ? Math.round((result.total_score / maxScore) * 100) : null,
         correctCount: result?.correct_count ?? null,
-        totalQuestions: exam.total_questions
+        totalQuestions: exam.total_questions,
+        classAvgScore: classAvgScore !== null ? Math.round(classAvgScore * 10) / 10 : null,
+        classAvgPercentage,
+        classStudentCount: classResults.length
       };
     }).filter(Boolean);
   };
@@ -3355,13 +3376,13 @@ const ResultsView = ({
               {trendData.length > 0 ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">成绩变化曲线</CardTitle>
+                    <CardTitle className="text-base">成绩变化曲线对比</CardTitle>
                     <CardDescription>
-                      显示各次考试的百分比得分变化
+                      蓝色为个人成绩，橙色为班级（{trendStudent?.class}）平均分
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-64 w-full">
+                    <div className="h-72 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={trendData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                           <CartesianGrid strokeDasharray="3 3" />
@@ -3378,28 +3399,72 @@ const ResultsView = ({
                             label={{ value: '得分率 (%)', angle: -90, position: 'insideLeft', fontSize: 12 }}
                           />
                           <Tooltip 
-                            formatter={(value: number) => [`${value}%`, '得分率']}
-                            labelFormatter={(label) => `考试: ${label}`}
                             content={({ active, payload, label }) => {
                               if (!active || !payload || !payload[0]) return null;
                               const data = payload[0].payload;
+                              const diff = data.percentage !== null && data.classAvgPercentage !== null
+                                ? data.percentage - data.classAvgPercentage
+                                : null;
                               return (
                                 <div className="bg-background border rounded-lg p-3 shadow-lg">
-                                  <p className="font-medium mb-1">{label}</p>
-                                  <p className="text-sm">得分: {data.score ?? '-'}/{data.maxScore}</p>
-                                  <p className="text-sm">得分率: {data.percentage ?? '-'}%</p>
-                                  <p className="text-sm">正确题数: {data.correctCount ?? '-'}/{data.totalQuestions}</p>
+                                  <p className="font-medium mb-2 border-b pb-1">{label}</p>
+                                  <div className="space-y-1 text-sm">
+                                    <p className="flex items-center gap-2">
+                                      <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                                      <span className="font-medium">{trendStudent?.name}:</span>
+                                      <span>{data.score ?? '-'}/{data.maxScore} ({data.percentage ?? '-'}%)</span>
+                                    </p>
+                                    <p className="flex items-center gap-2">
+                                      <span className="w-3 h-3 rounded-full bg-orange-500"></span>
+                                      <span className="font-medium">班级平均:</span>
+                                      <span>{data.classAvgScore ?? '-'}/{data.maxScore} ({data.classAvgPercentage ?? '-'}%)</span>
+                                    </p>
+                                    {diff !== null && (
+                                      <p className={`flex items-center gap-2 pt-1 border-t mt-1 ${
+                                        diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-muted-foreground'
+                                      }`}>
+                                        <span className="font-medium">差值:</span>
+                                        <span>{diff > 0 ? '+' : ''}{diff}%</span>
+                                        {diff > 5 && <span>↑ 领先</span>}
+                                        {diff < -5 && <span>↓ 落后</span>}
+                                      </p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground pt-1">
+                                      班级参考人数: {data.classStudentCount}人
+                                    </p>
+                                  </div>
                                 </div>
                               );
+                            }}
+                          />
+                          <Legend 
+                            verticalAlign="top"
+                            height={36}
+                            formatter={(value) => {
+                              if (value === 'percentage') return trendStudent?.name || '个人';
+                              if (value === 'classAvgPercentage') return `班级平均`;
+                              return value;
                             }}
                           />
                           <Line
                             type="monotone"
                             dataKey="percentage"
+                            name="percentage"
                             stroke="#3b82f6"
                             strokeWidth={2}
                             dot={{ r: 5, fill: '#3b82f6' }}
                             activeDot={{ r: 7 }}
+                            connectNulls
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="classAvgPercentage"
+                            name="classAvgPercentage"
+                            stroke="#f97316"
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            dot={{ r: 4, fill: '#f97316' }}
+                            activeDot={{ r: 6 }}
                             connectNulls
                           />
                         </LineChart>
@@ -3418,7 +3483,10 @@ const ResultsView = ({
               {trendData.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">成绩明细</CardTitle>
+                    <CardTitle className="text-base">成绩明细对比</CardTitle>
+                    <CardDescription>
+                      与班级平均分对比
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
@@ -3426,15 +3494,20 @@ const ResultsView = ({
                         <thead>
                           <tr className="border-b bg-muted/50">
                             <th className="text-left py-3 px-4 font-medium">考试</th>
-                            <th className="text-center py-3 px-4 font-medium">得分</th>
-                            <th className="text-center py-3 px-4 font-medium">满分</th>
-                            <th className="text-center py-3 px-4 font-medium">得分率</th>
-                            <th className="text-center py-3 px-4 font-medium">正确题数</th>
+                            <th className="text-center py-3 px-4 font-medium">个人得分</th>
+                            <th className="text-center py-3 px-4 font-medium">班级平均</th>
+                            <th className="text-center py-3 px-4 font-medium">与平均差值</th>
+                            <th className="text-center py-3 px-4 font-medium">趋势</th>
                           </tr>
                         </thead>
                         <tbody>
                           {trendData.map((data: any, index) => {
-                            // 计算趋势
+                            // 计算与班级平均的差值
+                            const diffWithClass = data.percentage !== null && data.classAvgPercentage !== null
+                              ? data.percentage - data.classAvgPercentage
+                              : null;
+                            
+                            // 计算个人趋势
                             let trendIcon = '';
                             let trendColor = '';
                             if (index > 0 && data.percentage !== null) {
@@ -3456,38 +3529,59 @@ const ResultsView = ({
                             
                             return (
                               <tr key={data.examId} className="border-b hover:bg-muted/30">
-                                <td className="py-3 px-4 font-medium">{data.name}</td>
+                                <td className="py-3 px-4">
+                                  <div className="font-medium">{data.name}</div>
+                                  <div className="text-xs text-muted-foreground">满分 {data.maxScore}</div>
+                                </td>
                                 <td className="text-center py-3 px-4">
                                   {data.score !== null ? (
-                                    <Badge variant="secondary">{data.score}</Badge>
-                                  ) : (
-                                    <span className="text-muted-foreground">-</span>
-                                  )}
-                                </td>
-                                <td className="text-center py-3 px-4 text-muted-foreground">{data.maxScore}</td>
-                                <td className="text-center py-3 px-4">
-                                  {data.percentage !== null ? (
-                                    <div className="flex items-center justify-center gap-2">
+                                    <div>
+                                      <div className="font-medium">{data.score}/{data.maxScore}</div>
                                       <Badge 
                                         variant="secondary" 
-                                        className={
+                                        className={`text-xs ${
                                           data.percentage >= 80 ? 'bg-green-100 text-green-800' :
                                           data.percentage >= 60 ? 'bg-yellow-100 text-yellow-800' :
                                           'bg-red-100 text-red-800'
-                                        }
+                                        }`}
                                       >
                                         {data.percentage}%
                                       </Badge>
-                                      {trendIcon && (
-                                        <span className={`text-lg font-bold ${trendColor}`}>{trendIcon}</span>
-                                      )}
                                     </div>
                                   ) : (
                                     <span className="text-muted-foreground">-</span>
                                   )}
                                 </td>
-                                <td className="text-center py-3 px-4 text-muted-foreground">
-                                  {data.correctCount !== null ? `${data.correctCount}/${data.totalQuestions}` : '-'}
+                                <td className="text-center py-3 px-4">
+                                  {data.classAvgScore !== null ? (
+                                    <div>
+                                      <div className="text-muted-foreground">{data.classAvgScore}/{data.maxScore}</div>
+                                      <Badge variant="outline" className="text-xs">
+                                        {data.classAvgPercentage}%
+                                      </Badge>
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                                <td className="text-center py-3 px-4">
+                                  {diffWithClass !== null ? (
+                                    <Badge 
+                                      variant="secondary"
+                                      className={`${
+                                        diffWithClass > 5 ? 'bg-green-100 text-green-800' :
+                                        diffWithClass < -5 ? 'bg-red-100 text-red-800' :
+                                        'bg-gray-100 text-gray-800'
+                                      }`}
+                                    >
+                                      {diffWithClass > 0 ? '+' : ''}{diffWithClass}%
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                                <td className={`text-center py-3 px-4 text-xl font-bold ${trendColor}`}>
+                                  {trendIcon || '-'}
                                 </td>
                               </tr>
                             );
