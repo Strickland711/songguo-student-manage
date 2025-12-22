@@ -137,10 +137,6 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
   
   // 登分时学生选择状态
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  
-  // 趋势分析状态
-  const [trendSelectedStudents, setTrendSelectedStudents] = useState<string[]>([]);
-  const [trendClassFilter, setTrendClassFilter] = useState('all');
 
   // Excel导入相关状态
   const [excelData, setExcelData] = useState<ExcelData[]>([]);
@@ -1131,12 +1127,11 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-fit">
+          <TabsList className="grid grid-cols-4 w-fit">
             <TabsTrigger value="create">创建考试</TabsTrigger>
             <TabsTrigger value="scoring">开始评分</TabsTrigger>
             <TabsTrigger value="results">查看成绩</TabsTrigger>
             <TabsTrigger value="history">历史记录</TabsTrigger>
-            <TabsTrigger value="trend">趋势分析</TabsTrigger>
           </TabsList>
 
           {/* 创建考试 */}
@@ -2018,302 +2013,6 @@ const ScoringSystem = ({ students }: ScoringSystemProps) => {
                 )}
               </>
             )}
-          </TabsContent>
-
-          {/* 趋势分析 */}
-          <TabsContent value="trend" className="space-y-6">
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-accent" />
-                  成绩趋势分析
-                </CardTitle>
-                <CardDescription>
-                  选择学生查看多次考试成绩的变化趋势
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* 班级筛选 */}
-                <div className="flex flex-wrap gap-4">
-                  <div className="space-y-2">
-                    <Label>按班级筛选</Label>
-                    <Select value={trendClassFilter} onValueChange={setTrendClassFilter}>
-                      <SelectTrigger className="w-40">
-                        <SelectValue placeholder="选择班级" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">全部班级</SelectItem>
-                        {Array.from(new Set(students.map(s => s.class))).filter(c => c && c.trim() !== '').map(className => (
-                          <SelectItem key={className} value={className}>{className}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2 flex-1">
-                    <Label>选择学生（可多选）</Label>
-                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded-lg">
-                      {students
-                        .filter(s => trendClassFilter === 'all' || s.class === trendClassFilter)
-                        .map(student => (
-                          <Badge
-                            key={student.id}
-                            variant={trendSelectedStudents.includes(student.id!) ? "default" : "outline"}
-                            className="cursor-pointer hover:bg-primary/10 transition-colors"
-                            onClick={() => {
-                              if (trendSelectedStudents.includes(student.id!)) {
-                                setTrendSelectedStudents(prev => prev.filter(id => id !== student.id));
-                              } else {
-                                setTrendSelectedStudents(prev => [...prev, student.id!]);
-                              }
-                            }}
-                          >
-                            {student.name}
-                          </Badge>
-                        ))}
-                    </div>
-                  </div>
-                  
-                  {trendSelectedStudents.length > 0 && (
-                    <div className="flex items-end">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setTrendSelectedStudents([])}
-                      >
-                        清空选择
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* 趋势图表 */}
-                {trendSelectedStudents.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center border rounded-lg bg-muted/20">
-                    <TrendingUp className="w-16 h-16 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">请选择学生</h3>
-                    <p className="text-muted-foreground">
-                      点击上方学生姓名即可查看成绩趋势
-                    </p>
-                  </div>
-                ) : (() => {
-                  // 按时间排序的考试列表
-                  const sortedExams = [...exams].sort((a, b) => {
-                    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-                    return dateA - dateB;
-                  });
-
-                  // 准备趋势数据
-                  const trendData = sortedExams.map(exam => {
-                    const maxScore = exam.scores.reduce((sum, s) => sum + s, 0);
-                    const dataPoint: any = {
-                      name: exam.name,
-                      maxScore
-                    };
-                    
-                    trendSelectedStudents.forEach(studentId => {
-                      const student = students.find(s => s.id === studentId);
-                      const result = examResults.find(r => r.exam_id === exam.id && r.student_id === studentId);
-                      if (student) {
-                        // 使用百分比分数便于比较
-                        dataPoint[student.name] = result 
-                          ? Math.round((result.total_score / maxScore) * 100) 
-                          : null;
-                        dataPoint[`${student.name}_raw`] = result?.total_score ?? null;
-                      }
-                    });
-                    
-                    return dataPoint;
-                  }).filter(d => {
-                    // 过滤掉没有任何选中学生成绩的考试
-                    return trendSelectedStudents.some(studentId => {
-                      const student = students.find(s => s.id === studentId);
-                      return student && d[student.name] !== null;
-                    });
-                  });
-
-                  // 生成不同颜色
-                  const colors = ['#3b82f6', '#22c55e', '#ef4444', '#eab308', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
-
-                  return (
-                    <div className="space-y-6">
-                      {trendData.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center border rounded-lg bg-muted/20">
-                          <BarChart3 className="w-16 h-16 text-muted-foreground mb-4" />
-                          <h3 className="text-lg font-semibold mb-2">暂无成绩数据</h3>
-                          <p className="text-muted-foreground">
-                            所选学生尚未参加任何考试
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <Card>
-                            <CardHeader>
-                              <CardTitle>成绩变化趋势（百分制）</CardTitle>
-                              <CardDescription>
-                                显示各次考试的百分比得分变化，便于跨考试比较
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="h-80 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <LineChart data={trendData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis 
-                                      dataKey="name" 
-                                      tick={{ fontSize: 12 }}
-                                      angle={-45}
-                                      textAnchor="end"
-                                      height={80}
-                                    />
-                                    <YAxis 
-                                      domain={[0, 100]}
-                                      tick={{ fontSize: 12 }}
-                                      label={{ value: '得分率 (%)', angle: -90, position: 'insideLeft' }}
-                                    />
-                                    <Tooltip 
-                                      formatter={(value: number, name: string) => {
-                                        if (name.endsWith('_raw')) return null;
-                                        const rawKey = `${name}_raw`;
-                                        const dataPoint = trendData.find(d => d[name] === value);
-                                        const rawScore = dataPoint?.[rawKey];
-                                        return [`${value}% (${rawScore ?? '-'}/${dataPoint?.maxScore ?? '-'}分)`, name];
-                                      }}
-                                      labelFormatter={(label) => `考试: ${label}`}
-                                    />
-                                    <Legend />
-                                    {trendSelectedStudents.map((studentId, index) => {
-                                      const student = students.find(s => s.id === studentId);
-                                      if (!student) return null;
-                                      return (
-                                        <Line
-                                          key={studentId}
-                                          type="monotone"
-                                          dataKey={student.name}
-                                          stroke={colors[index % colors.length]}
-                                          strokeWidth={2}
-                                          dot={{ r: 4 }}
-                                          activeDot={{ r: 6 }}
-                                          connectNulls
-                                        />
-                                      );
-                                    })}
-                                  </LineChart>
-                                </ResponsiveContainer>
-                              </div>
-                            </CardContent>
-                          </Card>
-
-                          {/* 详细数据表格 */}
-                          <Card>
-                            <CardHeader>
-                              <CardTitle>成绩明细表</CardTitle>
-                              <CardDescription>
-                                各次考试的具体分数
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="overflow-x-auto">
-                                <table className="w-full border-collapse">
-                                  <thead>
-                                    <tr className="border-b bg-muted/50">
-                                      <th className="text-left py-3 px-4 font-medium">学生</th>
-                                      {sortedExams.filter(exam => 
-                                        trendSelectedStudents.some(studentId => 
-                                          examResults.some(r => r.exam_id === exam.id && r.student_id === studentId)
-                                        )
-                                      ).map(exam => (
-                                        <th key={exam.id} className="text-center py-3 px-4 font-medium">
-                                          <div className="text-sm">{exam.name}</div>
-                                          <div className="text-xs text-muted-foreground">
-                                            满分 {exam.scores.reduce((sum, s) => sum + s, 0)}
-                                          </div>
-                                        </th>
-                                      ))}
-                                      <th className="text-center py-3 px-4 font-medium">平均分</th>
-                                      <th className="text-center py-3 px-4 font-medium">趋势</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {trendSelectedStudents.map(studentId => {
-                                      const student = students.find(s => s.id === studentId);
-                                      if (!student) return null;
-
-                                      const studentExamResults = sortedExams
-                                        .filter(exam => trendSelectedStudents.some(sid => 
-                                          examResults.some(r => r.exam_id === exam.id && r.student_id === sid)
-                                        ))
-                                        .map(exam => {
-                                          const result = examResults.find(r => r.exam_id === exam.id && r.student_id === studentId);
-                                          const maxScore = exam.scores.reduce((sum, s) => sum + s, 0);
-                                          return {
-                                            exam,
-                                            result,
-                                            maxScore,
-                                            percentage: result ? Math.round((result.total_score / maxScore) * 100) : null
-                                          };
-                                        });
-
-                                      const validResults = studentExamResults.filter(r => r.result);
-                                      const avgScore = validResults.length > 0
-                                        ? Math.round(validResults.reduce((sum, r) => sum + (r.percentage || 0), 0) / validResults.length)
-                                        : 0;
-
-                                      // 计算趋势（比较最近两次考试）
-                                      const recentResults = validResults.slice(-2);
-                                      let trend = '→';
-                                      let trendColor = 'text-muted-foreground';
-                                      if (recentResults.length >= 2) {
-                                        const diff = (recentResults[1].percentage || 0) - (recentResults[0].percentage || 0);
-                                        if (diff > 5) {
-                                          trend = '↑';
-                                          trendColor = 'text-green-600';
-                                        } else if (diff < -5) {
-                                          trend = '↓';
-                                          trendColor = 'text-red-600';
-                                        }
-                                      }
-
-                                      return (
-                                        <tr key={studentId} className="border-b hover:bg-muted/30">
-                                          <td className="py-3 px-4 font-medium">
-                                            {student.name}
-                                            <span className="text-xs text-muted-foreground ml-2">({student.class})</span>
-                                          </td>
-                                          {studentExamResults.map(({ exam, result, maxScore, percentage }) => (
-                                            <td key={exam.id} className="text-center py-3 px-4">
-                                              {result ? (
-                                                <div>
-                                                  <div className="font-medium">{result.total_score}/{maxScore}</div>
-                                                  <div className="text-xs text-muted-foreground">{percentage}%</div>
-                                                </div>
-                                              ) : (
-                                                <span className="text-muted-foreground">-</span>
-                                              )}
-                                            </td>
-                                          ))}
-                                          <td className="text-center py-3 px-4">
-                                            <Badge variant="secondary">{avgScore}%</Badge>
-                                          </td>
-                                          <td className={`text-center py-3 px-4 text-xl font-bold ${trendColor}`}>
-                                            {trend}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
 
@@ -3261,6 +2960,12 @@ const ResultsView = ({
   const [nameFilter, setNameFilter] = useState('');
   const [classFilter, setClassFilter] = useState('all');
   
+  // 趋势分析弹窗状态
+  const [trendDialogOpen, setTrendDialogOpen] = useState(false);
+  const [trendStudentId, setTrendStudentId] = useState<string | null>(null);
+  const [trendExamOrder, setTrendExamOrder] = useState<string[]>([]);
+  const [draggedExamId, setDraggedExamId] = useState<string | null>(null);
+  
   // 切换考试选择
   const toggleExam = (examId: string) => {
     setSelectedExams(prev => 
@@ -3276,13 +2981,13 @@ const ResultsView = ({
     return result;
   };
 
-  // 筛选学生 - 使用精确匹配或包含匹配
+  // 筛选学生 - 使用精确匹配
   const filteredStudents = students.filter(student => {
     let matches = true;
     
-    // 按班级筛选 - 使用精确匹配或包含匹配
+    // 按班级筛选 - 使用精确匹配
     if (classFilter.trim() && classFilter !== 'all') {
-      matches = matches && (student.class === classFilter || student.class.includes(classFilter));
+      matches = matches && student.class === classFilter;
     }
     
     // 按姓名筛选 - 使用包含匹配
@@ -3292,6 +2997,47 @@ const ResultsView = ({
     
     return matches;
   });
+
+  // 双击学生姓名时打开趋势弹窗
+  const handleStudentDoubleClick = (studentId: string) => {
+    if (selectedExams.length === 0) {
+      toast({
+        title: "请先选择考试",
+        description: "请在上方选择要分析的考试",
+        variant: "destructive",
+      });
+      return;
+    }
+    setTrendStudentId(studentId);
+    setTrendExamOrder([...selectedExams]);
+    setTrendDialogOpen(true);
+  };
+
+  // 拖拽开始
+  const handleDragStart = (examId: string) => {
+    setDraggedExamId(examId);
+  };
+
+  // 拖拽结束
+  const handleDragEnd = () => {
+    setDraggedExamId(null);
+  };
+
+  // 拖拽经过
+  const handleDragOver = (e: React.DragEvent, targetExamId: string) => {
+    e.preventDefault();
+    if (!draggedExamId || draggedExamId === targetExamId) return;
+    
+    const oldIndex = trendExamOrder.indexOf(draggedExamId);
+    const newIndex = trendExamOrder.indexOf(targetExamId);
+    
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOrder = [...trendExamOrder];
+      newOrder.splice(oldIndex, 1);
+      newOrder.splice(newIndex, 0, draggedExamId);
+      setTrendExamOrder(newOrder);
+    }
+  };
 
   // 导出选中考试的成绩
   const exportSelectedExams = () => {
@@ -3340,6 +3086,34 @@ const ResultsView = ({
 
   const { toast } = useToast();
 
+  // 获取趋势学生信息
+  const trendStudent = trendStudentId ? students.find(s => s.id === trendStudentId) : null;
+
+  // 准备趋势图表数据
+  const getTrendData = () => {
+    if (!trendStudentId || trendExamOrder.length === 0) return [];
+    
+    return trendExamOrder.map(examId => {
+      const exam = exams.find(e => e.id === examId);
+      if (!exam) return null;
+      
+      const maxScore = exam.scores.reduce((sum, s) => sum + s, 0);
+      const result = examResults.find(r => r.exam_id === examId && r.student_id === trendStudentId);
+      
+      return {
+        examId: exam.id,
+        name: exam.name,
+        maxScore,
+        score: result?.total_score ?? null,
+        percentage: result ? Math.round((result.total_score / maxScore) * 100) : null,
+        correctCount: result?.correct_count ?? null,
+        totalQuestions: exam.total_questions
+      };
+    }).filter(Boolean);
+  };
+
+  const trendData = getTrendData();
+
   return (
     <div className="space-y-6">
       {/* 考试选择区域 */}
@@ -3350,7 +3124,7 @@ const ResultsView = ({
             选择考试
           </CardTitle>
           <CardDescription>
-            勾选要查看的考试，可多选查看学生历次考试成绩
+            勾选要查看的考试，可多选查看学生历次考试成绩。双击学生姓名可查看成绩趋势。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -3411,7 +3185,7 @@ const ResultsView = ({
               <CardDescription>
                 {selectedExams.length === 0 
                   ? '请先选择考试以查看成绩'
-                  : `显示 ${filteredStudents.length} 名学生的成绩`
+                  : `显示 ${filteredStudents.length} 名学生的成绩，双击姓名查看趋势`
                 }
               </CardDescription>
             </div>
@@ -3483,7 +3257,13 @@ const ResultsView = ({
                 <tbody>
                   {filteredStudents.map(student => (
                     <tr key={student.id} className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium">{student.name}</td>
+                      <td 
+                        className="py-3 px-4 font-medium cursor-pointer hover:text-primary hover:underline select-none"
+                        onDoubleClick={() => handleStudentDoubleClick(student.id!)}
+                        title="双击查看成绩趋势"
+                      >
+                        {student.name}
+                      </td>
                       <td className="py-3 px-4 text-muted-foreground">{student.class || '-'}</td>
                       {selectedExams.map(examId => {
                         const exam = exams.find(e => e.id === examId);
@@ -3526,6 +3306,202 @@ const ResultsView = ({
           </CardContent>
         )}
       </Card>
+
+      {/* 趋势分析弹窗 */}
+      <Dialog open={trendDialogOpen} onOpenChange={setTrendDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              {trendStudent?.name} 的成绩趋势
+            </DialogTitle>
+            <DialogDescription>
+              拖拽下方考试卡片可调整考试顺序，查看不同时间维度的成绩变化
+            </DialogDescription>
+          </DialogHeader>
+
+          {trendStudent && (
+            <div className="space-y-6">
+              {/* 可拖拽的考试顺序 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">考试顺序（可拖拽调整）</Label>
+                <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-muted/20">
+                  {trendExamOrder.map((examId, index) => {
+                    const exam = exams.find(e => e.id === examId);
+                    if (!exam) return null;
+                    
+                    return (
+                      <div
+                        key={examId}
+                        draggable
+                        onDragStart={() => handleDragStart(examId)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => handleDragOver(e, examId)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
+                          draggedExamId === examId 
+                            ? 'opacity-50 border-primary bg-primary/10' 
+                            : 'bg-background hover:border-primary/50'
+                        }`}
+                      >
+                        <span className="text-xs font-medium text-muted-foreground">{index + 1}</span>
+                        <span className="text-sm">{exam.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 趋势图表 */}
+              {trendData.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">成绩变化曲线</CardTitle>
+                    <CardDescription>
+                      显示各次考试的百分比得分变化
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={trendData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="name" 
+                            tick={{ fontSize: 11 }}
+                            angle={-30}
+                            textAnchor="end"
+                            height={60}
+                          />
+                          <YAxis 
+                            domain={[0, 100]}
+                            tick={{ fontSize: 12 }}
+                            label={{ value: '得分率 (%)', angle: -90, position: 'insideLeft', fontSize: 12 }}
+                          />
+                          <Tooltip 
+                            formatter={(value: number) => [`${value}%`, '得分率']}
+                            labelFormatter={(label) => `考试: ${label}`}
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload || !payload[0]) return null;
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-background border rounded-lg p-3 shadow-lg">
+                                  <p className="font-medium mb-1">{label}</p>
+                                  <p className="text-sm">得分: {data.score ?? '-'}/{data.maxScore}</p>
+                                  <p className="text-sm">得分率: {data.percentage ?? '-'}%</p>
+                                  <p className="text-sm">正确题数: {data.correctCount ?? '-'}/{data.totalQuestions}</p>
+                                </div>
+                              );
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="percentage"
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            dot={{ r: 5, fill: '#3b82f6' }}
+                            activeDot={{ r: 7 }}
+                            connectNulls
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/20">
+                  <BarChart3 className="w-12 h-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">该学生在选中的考试中暂无成绩</p>
+                </div>
+              )}
+
+              {/* 成绩明细表 */}
+              {trendData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">成绩明细</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-3 px-4 font-medium">考试</th>
+                            <th className="text-center py-3 px-4 font-medium">得分</th>
+                            <th className="text-center py-3 px-4 font-medium">满分</th>
+                            <th className="text-center py-3 px-4 font-medium">得分率</th>
+                            <th className="text-center py-3 px-4 font-medium">正确题数</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {trendData.map((data: any, index) => {
+                            // 计算趋势
+                            let trendIcon = '';
+                            let trendColor = '';
+                            if (index > 0 && data.percentage !== null) {
+                              const prevData = trendData[index - 1] as any;
+                              if (prevData?.percentage !== null) {
+                                const diff = data.percentage - prevData.percentage;
+                                if (diff > 5) {
+                                  trendIcon = '↑';
+                                  trendColor = 'text-green-600';
+                                } else if (diff < -5) {
+                                  trendIcon = '↓';
+                                  trendColor = 'text-red-600';
+                                } else {
+                                  trendIcon = '→';
+                                  trendColor = 'text-muted-foreground';
+                                }
+                              }
+                            }
+                            
+                            return (
+                              <tr key={data.examId} className="border-b hover:bg-muted/30">
+                                <td className="py-3 px-4 font-medium">{data.name}</td>
+                                <td className="text-center py-3 px-4">
+                                  {data.score !== null ? (
+                                    <Badge variant="secondary">{data.score}</Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                                <td className="text-center py-3 px-4 text-muted-foreground">{data.maxScore}</td>
+                                <td className="text-center py-3 px-4">
+                                  {data.percentage !== null ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Badge 
+                                        variant="secondary" 
+                                        className={
+                                          data.percentage >= 80 ? 'bg-green-100 text-green-800' :
+                                          data.percentage >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                          'bg-red-100 text-red-800'
+                                        }
+                                      >
+                                        {data.percentage}%
+                                      </Badge>
+                                      {trendIcon && (
+                                        <span className={`text-lg font-bold ${trendColor}`}>{trendIcon}</span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                                <td className="text-center py-3 px-4 text-muted-foreground">
+                                  {data.correctCount !== null ? `${data.correctCount}/${data.totalQuestions}` : '-'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
